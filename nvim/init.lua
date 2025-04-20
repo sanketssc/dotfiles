@@ -1,37 +1,125 @@
-vim.g.base46_cache = vim.fn.stdpath "data" .. "/base46/"
-vim.g.mapleader = " "
+local utils = require("utils")
 
--- bootstrap lazy and all plugins
-local lazypath = vim.fn.stdpath "data" .. "/lazy/lazy.nvim"
-
-if not vim.uv.fs_stat(lazypath) then
-  local repo = "https://github.com/folke/lazy.nvim.git"
-  vim.fn.system { "git", "clone", "--filter=blob:none", repo, "--branch=stable", lazypath }
+-- lazy
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local out = vim.fn.system({
+    "git",
+    "clone",
+    "--filter=blob:none",
+    "--branch=stable",
+    lazyrepo,
+    lazypath,
+  })
+  if vim.v.shell_error ~= 0 then
+    vim.api.nvim_echo({
+      { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+      { out,                            "WarningMsg" },
+      { "\nPress any key to exit..." },
+    }, true, {})
+    vim.fn.getchar()
+    os.exit(1)
+  end
 end
-
 vim.opt.rtp:prepend(lazypath)
 
-local lazy_config = require "configs.lazy"
+-- vim opts
+require("vimopts")
 
--- load plugins
-require("lazy").setup({
-  {
-    "NvChad/NvChad",
+-- lazy.nvim setup
+require("lazy").setup("plugins", {
+  defaults = {
     lazy = false,
-    branch = "v2.5",
-    import = "nvchad.plugins",
   },
+})
 
-  { import = "plugins" },
-}, lazy_config)
+vim.filetype.add({ extension = { templ = "templ" } })
+vim.filetype.add({ extension = { purs = "purescript" } })
+vim.filetype.add({
+  extension = { nim = "nim" },
+  filename = { ["Nim"] = "nim" },
+})
 
--- load theme
-dofile(vim.g.base46_cache .. "defaults")
-dofile(vim.g.base46_cache .. "statusline")
+-- stop zig qf list from opening >:(
+vim.g.zig_fmt_parse_errors = 0
 
-require "options"
-require "nvchad.autocmds"
+-- treesitter config
+local config = require("nvim-treesitter.configs")
+config.setup({
+  ignore_install = {},
+  ensure_installed = {
+    "typst",
+    "purescript",
+    "nix",
+    "nim",
+    "vimdoc",
+    "go",
+    "rust",
+    "c",
+    "lua",
+    "python",
+    "html",
+    "css",
+    "javascript",
+    "typescript",
+    "prisma",
+    "haskell",
+    "zig",
+    "gleam",
+    "wgsl",
+    "php",
+    "nim",
+    "sql",
+    "markdown",
+    "latex",
+    "gdscript",
+    "gdshader",
+  },
+  highlight = {
+    enable = true,
+  },
+  indent = { enable = true },
+  modules = {},
+  sync_install = true,
+  auto_install = true,
+  incremental_selection = {
+    enable = true,
+    keymaps = {
+      init_selection = "<CR>",
+      scope_incremental = "<CR>",
+      node_incremental = "<TAB>",
+      node_decremental = "<S-TAB>",
+    },
+  },
+})
 
-vim.schedule(function()
-  require "mappings"
-end)
+-- EXPERIMENT :: highlight and move through functions in file with one keymap
+
+-- vim.keymap.set({ "n", "v" }, "[f", function()
+-- 	print("func!")
+-- 	vim.cmd("norm [[f")
+-- 	vim.cmd("norm vaf")
+-- 	vim.cmd("norm zz")
+-- end)
+
+-- vim.keymap.set({ "n", "v" }, "]f", function()
+-- 	print("func!")
+-- 	vim.cmd("norm [[F")
+-- 	vim.cmd("norm vaf")
+-- 	vim.cmd("norm zz")
+-- end)
+
+-- END EXPERIMENT :: not successful (yet)
+
+-- language specific mappings go here
+require("cool_stuff")
+require("mappings")
+
+utils.color_overrides.setup_colorscheme_overrides()
+
+-- theme
+vim.cmd("colorscheme base16-black-metal-gorgoroth")
+
+utils.fix_telescope_parens_win()
+utils.dashboard.setup_dashboard_image_colors()
