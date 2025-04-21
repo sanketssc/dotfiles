@@ -15,7 +15,7 @@ vim.o.scrolloff = 5
 vim.opt.ignorecase = true
 
 -- hmmmmmmmmmmmmmmmmm not sure about this
-vim.opt.colorcolumn = "80"
+-- vim.opt.colorcolumn = "80"
 -- vim.o.cmdheight = 1
 
 -- minor visual changes to panes
