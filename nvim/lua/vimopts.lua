@@ -2,7 +2,7 @@
 vim.cmd("set number")
 vim.cmd("set relativenumber")
 vim.cmd("set ts=2")
-vim.cmd("set cmdheight=0")
+vim.cmd("set cmdheight=1")
 vim.cmd("set termguicolors")
 vim.cmd("set scrolloff=5")
 vim.cmd("autocmd FileType sql setlocal noautoindent")
@@ -138,6 +138,13 @@ vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float)
 -- go to errors
 vim.keymap.set("n", "[e", vim.diagnostic.goto_next)
 vim.keymap.set("n", "]e", vim.diagnostic.goto_next)
+vim.diagnostic.config({
+  virtual_text = true, -- Show errors/warnings inline
+  signs = true,        -- Show signs in the sign column
+  underline = true,    -- Underline errors
+  update_in_insert = true, -- Don't update diagnostics while typing in insert mode
+  severity_sort = true,  -- Sort diagnostics by severity
+})
 
 function leave_snippet()
   if
