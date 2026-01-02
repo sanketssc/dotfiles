@@ -135,7 +135,7 @@ return {
                     { section = "startup" },
                     {
                         section = "terminal",
-                        cmd = "ascii-image-converter ~/Desktop/Others/profiles.JPG -C -c",
+                        cmd = "ascii-image-converter ~/Documents/profile.jpg -C -c",
                         random = 15,
                         pane = 2,
                         indent = 15,
@@ -157,6 +157,7 @@ return {
             { "<leader>ps", function() require("snacks").picker.grep() end, desc = "Grep word" },
             { "<leader>pws", function() require("snacks").picker.grep_word() end, desc = "Search Visual selection or Word", mode = { "n", "x" } },
             { "<leader>pk", function() require("snacks").picker.keymaps({ layout = "ivy" }) end, desc = "Search Keymaps (Snacks Picker)" },
+            { "<leader>sm", function() require("snacks").picker.marks() end, desc = "Marks"},
 
             -- Git Stuff
             { "<leader>gbr", function() require("snacks").picker.git_branches({ layout = "select" }) end, desc = "Pick and Switch Git Branches" },

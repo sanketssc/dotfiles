@@ -11,6 +11,7 @@ vim.keymap.set("n", "<C-d>", "<C-d>zz", { desc = "move down in buffer with curso
 vim.keymap.set("n", "<C-u>", "<C-u>zz", { desc = "move up in buffer with cursor centered" })
 vim.keymap.set("n", "n", "nzzzv")
 vim.keymap.set("n", "N", "Nzzzv")
+vim.keymap.set("n", ";", ":", {desc = "use ; to enter cmd mode"})
 
 vim.keymap.set("v", "<", "<gv", opts)
 vim.keymap.set("v", ">", ">gv", opts)

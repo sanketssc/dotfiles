@@ -162,18 +162,18 @@ format = '[ $symbol( $version) ]($style)'
 symbol = " "
 format = '[[ $symbol( $version) ]]($style)'
 
-[rust]
-symbol = ""
-format = '[[ $symbol( $version) ]]($style)'
+# [rust]
+# symbol = ""
+# format = '[[ $symbol( $version) ]]($style)'
 
 [golang]
 symbol = ""
 format = '[ $symbol( $version) ]($style)'
 detect_files = ["go.mod"]
 
-[php]
-symbol = ""
-format = '[[ $symbol( $version) ]]($style)'
+# [php]
+# symbol = ""
+# format = '[[ $symbol( $version) ]]($style)'
 
 [java]
 symbol = " "
@@ -192,7 +192,6 @@ format = '[[ $symbol( $version) ]]($style)'
 [python]
 symbol = ""
 
-format = '[[ $symbol( $version) ]]($style)'
 
 
 [docker_context]
@@ -218,3 +217,5 @@ vimcmd_replace_one_symbol = '[](bold fg:purple)'
 vimcmd_replace_symbol = '[](bold fg:purple)'
 vimcmd_visual_symbol = '[](bold fg:lavender)'
 
+[gcloud]
+disabled = true

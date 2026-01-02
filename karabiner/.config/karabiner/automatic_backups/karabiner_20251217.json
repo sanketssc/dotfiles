@@ -1628,14 +1628,6 @@
                         "vendor_id": 13652
                     },
                     "ignore": false
-                },
-                {
-                    "identifiers": {
-                        "is_pointing_device": true,
-                        "product_id": 163,
-                        "vendor_id": 5426
-                    },
-                    "ignore": false
                 }
             ],
             "name": "Default",

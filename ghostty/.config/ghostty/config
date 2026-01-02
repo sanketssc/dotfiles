@@ -53,6 +53,8 @@ keybind = super+b>7=goto_tab:7
 keybind = super+b>8=goto_tab:8
 keybind = super+b>9=goto_tab:9
 
+custom-shader = shaders/cursor_warp.glsl
+
 # splitting
 keybind = super+b>\=new_split:right
 keybind = super+b>-=new_split:down
