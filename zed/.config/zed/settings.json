@@ -48,7 +48,13 @@
   },
   "terminal": {
     "font_weight": 100.0,
-    "shell": "system",
+    // nushell on the XDG-layout Mac (XDG_DATA_HOME set), login shell elsewhere
+    "shell": {
+      "with_arguments": {
+        "program": "/bin/sh",
+        "args": ["-c", "[ -n \"$XDG_DATA_HOME\" ] && command -v nu >/dev/null && exec nu || exec \"${SHELL:-/bin/zsh}\" -l"],
+      },
+    },
     "button": true,
   },
   "agent_buffer_font_size": 16.0,

@@ -84,7 +84,8 @@ description = "yazi"
 [[keys.command]]
 key = "prefix+ctrl+t"
 type = "popup"
-command = "zsh"
+# popups run via /bin/sh -c; nushell on the XDG-layout Mac, zsh elsewhere
+command = "[ -n \"$XDG_DATA_HOME\" ] && command -v nu >/dev/null && exec nu || exec zsh"
 width = "80%"
 height = "80%"
 description = "floating shell"
@@ -146,7 +147,7 @@ description = "agent usage / quota"
 [[keys.command]]
 key = "prefix+d"
 type = "popup"
-command = "f=$(printf '%s\\n' ~/.zshrc ~/.zprofile ~/.config/herdr/config.toml ~/.config/tmux/tmux.conf ~/dotfiles/nvim/.config/nvim | fzf --prompt='config> ') && cd \"$(dirname \"$f\")\" && nvim \"$f\""
+command = "f=$(printf '%s\\n' \"${ZDOTDIR:-$HOME}/.zshrc\" \"${ZDOTDIR:-$HOME}/.zprofile\" ~/.config/nushell/config.nu ~/.config/nushell/env.nu ~/.config/herdr/config.toml ~/.config/tmux/tmux.conf ~/dotfiles/nvim/.config/nvim | fzf --prompt='config> ') && cd \"$(dirname \"$f\")\" && nvim \"$f\""
 width = "75%"
 height = "75%"
 description = "edit configs"
