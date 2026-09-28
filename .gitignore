@@ -1,0 +1,10 @@
+# macOS junk
+.DS_Store
+# local config backups
+*.bak.*
+# karabiner writes these on every change
+karabiner/.config/karabiner/automatic_backups/
+# herdr runtime state (only config.toml + local-plugins are tracked)
+herdr/.config/herdr/*
+!herdr/.config/herdr/config.toml
+!herdr/.config/herdr/local-plugins/
