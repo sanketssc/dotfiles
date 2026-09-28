@@ -103,7 +103,9 @@ cd $HOME/dotfiles || exit
 
 # Stow dotfiles packages
 echo "Stowing dotfiles..."
-stow -t ~ aerospace karabiner neovim starship wezterm tmux zsh kitty
+stow -t ~ aerospace karabiner nvim starship wezterm tmux zsh kitty worktrunk herdr-automatic-rename scripts
+# herdr keeps sockets, logs and session state in ~/.config/herdr: link only config.toml + local-plugins
+stow --no-folding -t ~ herdr
 
 echo "Dotfiles setup complete!"
 
