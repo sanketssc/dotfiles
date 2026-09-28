@@ -41,6 +41,24 @@ cd "$DOTFILES"
 log "brew bundle (Brewfile.core)"
 brew bundle --file "$DOTFILES/Brewfile.core"
 
+# 4b. npm globals (brew node)
+log "npm globals"
+for pkg in opensrc pnpm yarn eas-cli; do
+  npm ls -g --depth=0 "$pkg" >/dev/null 2>&1 || npm install -g "$pkg" >/dev/null || warn "npm -g $pkg failed"
+done
+
+# 4c. Go tools the monorepo does NOT pin (it pins go/lefthook/mockery/gofumpt/golangci-lint/grpcurl
+#     in mise.toml → `task tools:install` in the repo). Uses mise's Go, never brew's.
+GO_VERSION="1.26.5"
+GO_TOOLS=(golang.org/x/tools/gopls@latest honnef.co/go/tools/cmd/staticcheck@latest
+          github.com/google/wire/cmd/wire@latest google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest)
+log "Go $GO_VERSION (mise) + go tools"
+mise install "go@$GO_VERSION" >/dev/null
+for t in "${GO_TOOLS[@]}"; do
+  mise exec "go@$GO_VERSION" -- go install "$t" >/dev/null 2>&1 || warn "go install $t failed"
+done
+
 # 5. stow — anything real already at a target path is moved to $BACKUP first
 backup_conflicts() {
   local pkg=$1 rel target
@@ -133,4 +151,12 @@ Core setup done. Manual steps left:
                   nushell on macOS reads ~/Library/Application Support/nushell unless XDG_CONFIG_HOME is set.
                   prompt/tools: starship init nu · zoxide init nushell · atuin init nu
                   starship config lives at ~/.config/starship/starship.toml → set STARSHIP_CONFIG to it.
+  6. Matiks repos: clone matiks-monorepo, matiks-client, matiks-skills-hub into ~/Documents/matiks, then
+                  monorepo: `task tools:install` (mise pins go/lefthook/mockery/...), `task hooks:install`
+                  client:   Node 22 (.nvmrc) → `mise use node@22` in the repo, `corepack enable`, `yarn`,
+                            `cd ios && pod install`
+                  shell rc: activate mise (zsh: eval "$(mise activate zsh)" · nu: see mise docs) and add ~/go/bin to PATH
+                  re-run ~/claude-config/apply.sh after cloning matiks-skills-hub (company skill links)
+  7. Xcode:       install from the App Store; Android SDK: open Android Studio once
+  8. whoburnedmore: `npx whoburnedmore` (link this Mac), then `npx whoburnedmore install-sync`
 EOF

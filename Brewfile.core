@@ -39,3 +39,50 @@ cask "claude-code"
 # terminal app + fonts
 cask "kitty"
 cask "font-monaspace"
+cask "font-jetbrains-mono-nerd-font"   # starship prompt glyphs
+
+# workflow tools
+brew "worktrunk"        # wt — git worktrees
+brew "jj"               # jujutsu (starship shows jj state)
+brew "tree-sitter-cli"  # nvim treesitter parser builds
+brew "coreutils"
+brew "btop"
+brew "gdu"
+brew "wget"
+brew "tree"
+brew "uv"
+
+# matiks dev stack
+# Go is NOT installed from brew: the monorepo pins it (and lefthook, mockery, gofumpt,
+# golangci-lint, grpcurl) in mise.toml — run `task tools:install` inside the repo.
+# A brew `go` on PATH ahead of mise's pin breaks the pre-push hook (see its Taskfile).
+brew "mise"
+brew "go-task"
+brew "bazelisk"         # fetches the Bazel version pinned in .bazelversion
+brew "buf"
+brew "redis"
+brew "watch"
+brew "cocoapods"
+brew "openjdk@17"
+brew "rbenv"
+brew "xcodegen"
+brew "awscli"
+brew "cloudflared"
+brew "helm"
+cask "docker-desktop"
+cask "gcloud-cli"
+cask "android-studio"
+
+# apps
+cask "raycast"
+cask "ghostty"
+cask "zen"
+cask "brave-browser"
+cask "slack"
+cask "clickup"
+cask "visual-studio-code"
+cask "zed"
+cask "postman"
+cask "mongodb-compass"
+cask "localsend"
+cask "stats"
