@@ -100,6 +100,11 @@ cd "$DOTFILES"
 
 # 5. packages
 log "brew bundle (Brewfile.core)"
+# newer Homebrew refuses formulae/casks from third-party taps until they're trusted
+for tap in $(sed -nE 's/^tap "([^"]+)".*/\1/p' "$DOTFILES/Brewfile.core"); do
+  brew tap "$tap"
+  if brew trust --help >/dev/null 2>&1; then brew trust --tap "$tap"; fi   # stored in $XDG_CONFIG_HOME/homebrew/trust.json
+done
 brew bundle --file "$DOTFILES/Brewfile.core"
 
 log "npm globals"
