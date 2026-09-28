@@ -25,6 +25,7 @@ brew "jq"
 brew "git"
 brew "gh"
 brew "stow"
+brew "git-lfs"
 
 # herdr + Collie (Collie's plugin build needs bun + git; herdr-agent-usage builds with cargo)
 brew "herdr"

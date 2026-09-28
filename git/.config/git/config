@@ -1,0 +1,26 @@
+# Shared git config (both Macs). Machine-specific bits live in config.local (not tracked).
+[user]
+	name = sanketssc
+	email = clasac118@gmail.com
+[pull]
+	rebase = true
+[push]
+	autoSetupRemote = true
+[core]
+	editor = nvim
+	autocrlf = input
+[init]
+	defaultBranch = main
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[alias]
+	delbr = "!f() { b=$1; git branch -d \"$b\" && git push origin --delete \"$b\"; }; f"
+	delbrf = "!f() { b=$1; git branch -D \"$b\" && git push origin --delete \"$b\"; }; f"
+[credential]
+	helper = osxkeychain
+# per-machine overrides, e.g. the https->ssh GitHub rewrite (only on machines with a GitHub SSH key)
+[include]
+	path = config.local

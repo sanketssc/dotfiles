@@ -12,3 +12,7 @@ herdr/.config/herdr/*
 zed/.config/zed/prompts/
 zed/.config/zed/conversations/
 zed/.config/zed/settings_backup.json
+# git: per-machine overrides
+git/.config/git/config.local
+# kitty: per-machine overrides
+kitty/.config/kitty/local.conf
