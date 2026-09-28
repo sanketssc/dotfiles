@@ -1,4 +1,5 @@
-export NVM_DIR="$HOME/.nvm"
+# nvm: old Mac only (new Mac pins Node per repo with mise)
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -9,25 +10,26 @@ export LANG=en_US.UTF-8
 # GNU coreutils
 export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
 
-# Add local ~/scripts to the PATH
-export PATH="$HOME/scripts:$PATH"
+# personal scripts: ~/scripts (old layout) or ~/.local/bin (XDG layout, also GOBIN there)
+[ -d "$HOME/scripts" ] && export PATH="$HOME/scripts:$PATH"
+[ -n "$XDG_DATA_HOME" ] && export PATH="$HOME/.local/bin:$PATH"
 
 # Mason
 export PATH="$HOME/.local/share/nvim/mason/bin:$PATH"
 
 # Tmux
-export TMUX_CONF="$HOME/.config/tmux/tmux.conf"
+export TMUX_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf"
 
 # Starship PATH
-export STARSHIP_CONFIG="$HOME/.config/starship/starship.toml"
+export STARSHIP_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/starship/starship.toml"
 
 # Tealdeer
-export TEALDEER_CONFIG_DIR="$HOME/.config/tealdeer/"
+export TEALDEER_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tealdeer/"
 
 # Path to your oh-my-zsh installation.
 # NOTE : Disabled Shell Prompt: Currently using Starship
 # NOTE: using oh-my-zsh only for zsh plugins management
-export ZSH="$HOME/.oh-my-zsh"
+export ZSH="${ZSH:-$HOME/.oh-my-zsh}"   # absent on the new Mac; .zshrc falls back to plain compinit
 
 # Using Starship instead of p10k
 # export ZSH_THEME="powerlevel10k/powerlevel10k"
@@ -86,3 +88,6 @@ export PATH
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
 
+
+# Created by `pipx` on 2026-04-21 11:48:45
+export PATH="$PATH:/Users/sanketssc/.local/bin"
