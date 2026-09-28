@@ -100,15 +100,18 @@ if [ ! -d "$HOME/dotfiles" ]; then
   git clone --branch mydots https://github.com/sanketssc/dotfiles.git $HOME/dotfiles
 fi
 
-# export gnu coreutils to path
-echo 'export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"' >> ~/.zshrc
+# gnu coreutils PATH lives in zsh/.config/zsh/.zprofile (tracked) — don't append to ~/.zshrc
 
 # Navigate to dotfiles directory
 cd $HOME/dotfiles || exit
 
 # Stow dotfiles packages
 echo "Stowing dotfiles..."
-stow -t ~ aerospace karabiner nvim starship wezterm tmux zsh kitty zed worktrunk herdr-automatic-rename scripts
+# ~/.config must be a real dir, or stow folds it into the first package
+mkdir -p ~/.config
+# zsh-home links ~/.zshrc, ~/.zprofile, ~/.zshenv into zsh/.config/zsh (classic layout;
+# the --core XDG layout uses ZDOTDIR=~/.config/zsh instead and skips zsh-home)
+stow -t ~ aerospace karabiner nvim starship wezterm tmux zsh zsh-home git kitty zed worktrunk herdr-automatic-rename scripts
 # herdr keeps sockets, logs and session state in ~/.config/herdr: link only config.toml + local-plugins
 stow --no-folding -t ~ herdr
 
