@@ -1,0 +1,14 @@
+#!/bin/sh
+# worktrunk post-remove hook: close the herdr workspace of a removed worktree.
+# Usage: herdr-close <worktree_path>
+# Runs even outside herdr so workspaces don't go stale; no-op if herdr isn't running.
+set -eu
+
+wt_path=$1
+herdr=${HERDR_BIN_PATH:-herdr}
+
+"$herdr" workspace list 2>/dev/null |
+  jq -r --arg p "$wt_path" '.result.workspaces[] | select(.worktree.checkout_path == $p) | .workspace_id' |
+  while read -r ws; do
+    "$herdr" workspace close "$ws" >/dev/null 2>&1 || true
+  done

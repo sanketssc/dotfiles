@@ -67,6 +67,14 @@ open_notification_target = "prefix+shift+o"
 # tmux: prefix+f tmux-sessionizer → herdr searchable session navigator
 goto = ["prefix+f", "prefix+g"]
 
+# worktrees are owned by worktrunk (wt); herdr only opens/closes their workspaces via
+# wt hooks (~/.config/worktrunk/bin/herdr-open, herdr-close). Disable herdr-native
+# worktree create/open/remove so nothing bypasses wt paths and hooks.
+# prefix+shift+g runs the wt picker instead (see keys.command below).
+new_worktree = ""
+open_worktree = ""
+remove_worktree = ""
+
 # agents panel (no tmux equivalent): cycle sidebar agent rows, or jump by number
 next_agent = "prefix+shift+j"
 previous_agent = "prefix+shift+k"
@@ -97,6 +105,15 @@ command = "lazygit"
 width = "90%"
 height = "90%"
 description = "lazygit"
+
+# worktrunk picker: Enter switch · Alt-c create · Alt-x remove (repo picker outside a repo)
+[[keys.command]]
+key = "prefix+shift+g"
+type = "popup"
+command = "exec \"$HOME/.config/worktrunk/bin/herdr-wt\""
+width = "90%"
+height = "90%"
+description = "worktree (wt)"
 
 [[keys.command]]
 key = "prefix+ctrl+m"

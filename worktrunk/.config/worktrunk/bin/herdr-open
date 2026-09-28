@@ -1,0 +1,23 @@
+#!/bin/sh
+# worktrunk post-switch hook: open (or focus) the herdr workspace for a worktree.
+# Usage: herdr-open <worktree_path> <primary_worktree_path>
+# No-op outside herdr, for the primary checkout, and under Claude Code
+# (its --worktree / subagent worktrees shouldn't spawn herdr workspaces).
+set -eu
+
+wt_path=$1
+primary=${2:-}
+
+[ "${HERDR_ENV:-}" = 1 ] || exit 0
+[ -z "${CLAUDECODE:-}" ] || exit 0
+[ -n "$primary" ] && [ "$wt_path" != "$primary" ] || exit 0
+
+herdr=${HERDR_BIN_PATH:-herdr}
+
+ws=$("$herdr" worktree list --cwd "$primary" |
+  jq -r --arg p "$wt_path" '.result.worktrees[] | select(.path == $p) | .open_workspace_id // empty')
+
+if [ -n "$ws" ]; then
+  exec "$herdr" workspace focus "$ws" >/dev/null
+fi
+exec "$herdr" worktree open --cwd "$primary" --path "$wt_path" --focus >/dev/null

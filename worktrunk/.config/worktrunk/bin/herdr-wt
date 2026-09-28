@@ -1,0 +1,19 @@
+#!/bin/sh
+# herdr popup: switch / create / remove worktrees through worktrunk's picker.
+# Outside a repo, pick one of the matiks primary checkouts first.
+# Picker keys: Enter switch · Alt-c create from typed text · Alt-x remove.
+# The worktrunk post-switch hook (herdr-open) then opens the herdr workspace.
+set -eu
+
+root=${MATIKS_ROOT:-$HOME/Documents/matiks}
+no_worktrees="matiks-skills-hub"   # plain clones, never worktree'd: hidden from the repo picker
+
+repo=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$repo" ]; then
+  name=$(for d in "$root"/*/; do [ -d "$d.git" ] && basename "$d"; done |
+    grep -vxF "$no_worktrees" |
+    fzf --prompt='repo> ' --reverse) || exit 0
+  repo=$root/$name
+fi
+
+exec wt -C "$repo" switch --no-cd --branches

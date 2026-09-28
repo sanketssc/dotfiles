@@ -1,17 +1,18 @@
 # worktrunk user config (machine-local, not committed to repos)
 #
-# Per project:
-#   worktree-path  — new worktrees land at  <repo-parent>/<repo>.<branch>  (so monorepo and client
-#                    worktrees on the same branch never collide).
-#   post-start.copy-env — on new worktree creation, copy gitignored env files
-#                    from the primary worktree (dev / main) into the new one.
-#                    Which files copy is set by each repo's primary-worktree
-#                    `.worktreeinclude` (currently the .env files).
+# matiks repos (every github.com/matiks-com/* repo):
+#   worktree-path — all worktrees land in a hidden sibling dir:
+#                   ~/Documents/matiks/.worktrees/<repo>.<branch>
+#                   <repo>.<branch> keeps dir names unique across repos (docker compose
+#                   project names, bazel-<dir> symlinks) and the parent stays clean.
+#   post-switch.herdr — inside herdr, open/focus a herdr workspace for the worktree.
+#   post-remove.herdr — close that herdr workspace once the worktree is gone.
+#   Nothing is copied into new worktrees from user config. matiks-monorepo's own
+#   .config/wt.toml still ships a post-start copy-ignored (approve/decline on first use).
+#   To copy env files later, add a .worktreeinclude to the primary checkout and use
+#   post-start.copy-env = "wt step copy-ignored --require-include".
 
-[projects."github.com/matiks-com/matiks-client"]
-worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
-post-start.copy-env = "wt step copy-ignored"
-
-[projects."github.com/matiks-com/matiks-monorepo"]
-worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
-post-start.copy-env = "wt step copy-ignored"
+[projects."github.com/matiks-com/*"]
+worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}.{{ branch | sanitize }}"
+post-switch.herdr = "~/.config/worktrunk/bin/herdr-open '{{ worktree_path }}' '{{ primary_worktree_path }}'"
+post-remove.herdr = "~/.config/worktrunk/bin/herdr-close '{{ worktree_path }}'"

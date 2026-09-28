@@ -178,6 +178,18 @@ zoxide init nushell > "$NU_AUTOLOAD/zoxide.nu"
 atuin init nu > "$NU_AUTOLOAD/atuin.nu"
 mise activate nu > "$NU_AUTOLOAD/mise.nu"
 
+# 8b. nushell as login shell. A terminal-started login nu has no XDG_CONFIG_HOME yet, so on macOS
+# it reads ~/Library/Application Support/nushell: point that at ~/.config/nushell. env.nu then
+# loads the XDG_ENV exports from /etc/zshenv itself.
+log "nushell as login shell"
+NU_MAC_DIR="$HOME/Library/Application Support/nushell"
+if [[ ! -L "$NU_MAC_DIR" ]]; then
+  if [[ -e "$NU_MAC_DIR" ]]; then mkdir -p "$BACKUP" && mv "$NU_MAC_DIR" "$BACKUP/nushell-appsupport"; fi
+  ln -s "$XDG_CONFIG_HOME/nushell" "$NU_MAC_DIR"
+fi
+grep -qxF "$NU" /etc/shells || echo "$NU" | sudo tee -a /etc/shells >/dev/null
+[[ "$(dscl . -read "$HOME" UserShell | awk '{print $2}')" == "$NU" ]] || sudo chsh -s "$NU" "$USER"
+
 # 9. tmux plugins — they are gitlinks in this repo, so a fresh clone has empty plugin dirs
 TPM="$HOME/.config/tmux/.tmux/plugins/tpm"
 if [[ ! -f "$TPM/tpm" ]]; then
@@ -231,6 +243,12 @@ else
   warn "claude-config not found:  gh repo clone sanketssc/claude-config ~/claude-config && ~/claude-config/apply.sh"
 fi
 
+# 13b. Claude ↔ herdr / worktrunk. After apply.sh: its settings.json already lists the herdr
+# SessionStart hook and the worktrunk plugin, these write the hook script and fetch the plugin.
+log "Claude integrations (herdr hook, worktrunk plugin)"
+herdr integration install claude >/dev/null || warn "herdr: run  herdr integration install claude"
+wt -y config plugins claude install >/dev/null || warn "worktrunk: run  wt config plugins claude install"
+
 # 14. anything still loose in ~ ?
 log "Checking ~ for loose entries"
 allowed='^(\.config|\.local|\.cache|\.ssh|\.Trash|\.CFUserTextEncoding|\.DS_Store|\.zsh_sessions)$'
@@ -253,7 +271,8 @@ Core setup done. Open a NEW kitty window (nushell) so the environment applies. M
                                   collie crew join https://<invok3r MagicDNS name> @<token-file> --address <this Mac's MagicDNS name>:8787 --label <name>
                                   set COLLIE_HOST=<this Mac's tailnet IP> in the collie .env, then collie restart
                     (on invok3r)  collie restart
-  6. Matiks:      clone matiks-monorepo, matiks-client, matiks-skills-hub into ~/Documents/matiks, then
+  6. Matiks:      clone matiks-monorepo, matiks-client, admin-client, matiks-skills-hub into ~/Documents/matiks
+                  (plain clones; worktrees come later via wt → ~/Documents/matiks/.worktrees), then
                   monorepo: task tools:install && task hooks:install
                   client:   mise use node@22 (in the repo), corepack enable, yarn, (cd ios && pod install)
                   re-run ~/claude-config/apply.sh (company skill links need matiks-skills-hub)
