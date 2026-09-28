@@ -2,6 +2,7 @@
 # Used by `./install.sh --core` (brew bundle --file Brewfile.core).
 
 tap "oven-sh/bun"
+tap "nikitabobko/tap"
 
 # shell + prompt
 brew "nushell"
@@ -39,6 +40,7 @@ cask "claude-code"
 
 # terminal app + fonts
 cask "kitty"
+cask "nikitabobko/tap/aerospace"   # tiling WM; config in aerospace/ (start-at-login = true)
 cask "font-monaspace"
 cask "font-jetbrains-mono-nerd-font"   # starship prompt glyphs
 

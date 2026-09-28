@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Core setup for a new Mac: nvim, tmux, starship, kitty (+ Monaspace), zed, zsh + nushell, git,
-# worktrunk, herdr + plugins + Collie, Claude Code. Everything else in this repo (aerospace,
-# karabiner, ...) is left out.
+# worktrunk, aerospace, herdr + plugins + Collie, Claude Code. Everything else in this repo
+# (karabiner, sketchybar, wezterm, ...) is left out.
 #
 # XDG layout: nothing loose in ~. Config in ~/.config, data in ~/.local/share, cache in ~/.cache,
 # state in ~/.local/state, binaries in ~/.local/bin. One variable list (XDG_ENV below) is exported
@@ -133,7 +133,7 @@ backup_conflicts() { # $1 = stow dir, $2 = package, $3 = target dir
   done < <(cd "$1/$2" && find . -mindepth 1 \( -type f -o -type l \) -print)
 }
 
-PKGS=(nvim starship tmux kitty zed zsh nushell git worktrunk)
+PKGS=(nvim starship tmux kitty zed zsh nushell git worktrunk aerospace)
 log "Stowing ${PKGS[*]} + herdr + scripts"
 # ~/.config and ~/.local/bin must be real dirs, or stow folds them into one package (other apps
 # and GOBIN would then write into the repo) — both were created in step 2.
@@ -244,7 +244,9 @@ Core setup done. Open a NEW kitty window (nushell) so the environment applies. M
                   monorepo: task tools:install && task hooks:install
                   client:   mise use node@22 (in the repo), corepack enable, yarn, (cd ios && pod install)
                   re-run ~/claude-config/apply.sh (company skill links need matiks-skills-hub)
-  7. Xcode from the App Store; open Android Studio once for the SDK.
+  7. AeroSpace: open it once (open -a AeroSpace) and allow it in System Settings → Privacy & Security →
+     Accessibility; it then starts at login.
+     Xcode from the App Store; open Android Studio once for the SDK.
      GUI apps (Docker Desktop, Android Studio) don't read zshenv and may create ~/.docker / ~/.android.
   8. whoburnedmore: npx whoburnedmore (link this Mac), then npx whoburnedmore install-sync
 EOF
