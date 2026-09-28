@@ -201,6 +201,10 @@ rows = [
 # tmux-resurrect / tmux-continuum: herdr saves layout + restores built in
 resume_agents_on_restore = true
 
+[worktrees]
+# XDG: herdr's default is ~/.herdr/worktrees
+directory = "~/.local/share/herdr/worktrees"
+
 [experimental]
 # tmux-resurrect @resurrect-capture-pane-contents "on"
 pane_history = true
