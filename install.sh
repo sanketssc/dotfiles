@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# `./install.sh --core`: minimal new-Mac setup (nvim, tmux, starship, kitty, herdr + Collie, Claude, nushell)
+if [[ "${1:-}" == "--core" ]]; then
+    exec "$(cd "$(dirname "$0")" && pwd)/install-core.sh"
+fi
+
 # Install xCode cli tools
 if [[ "$(uname)" == "Darwin" ]]; then
     echo "macOS deteted..."
@@ -92,7 +97,7 @@ echo "Installation complete..."
 # Clone dotfiles repository
 if [ ! -d "$HOME/dotfiles" ]; then
   echo "Cloning dotfiles repository..."
-  git clone https://github.com/Sin-cy/dotfiles.git $HOME/dotfiles
+  git clone --branch mydots https://github.com/sanketssc/dotfiles.git $HOME/dotfiles
 fi
 
 # export gnu coreutils to path

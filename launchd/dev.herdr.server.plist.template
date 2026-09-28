@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.herdr.server</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__HERDR__</string>
+		<string>server</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__HOME__</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>SHELL</key>
+		<string>/bin/zsh</string>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<key>PATH</key>
+		<string>__HOME__/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<!-- start at login -->
+	<key>RunAtLoad</key>
+	<true/>
+	<!-- restart only after a crash; exit 1 ("already running") is left alone -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>Crashed</key>
+		<true/>
+	</dict>
+	<!-- don't kill herdr's children (panes, handoff servers) when this process exits -->
+	<key>AbandonProcessGroup</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__HOME__/Library/Logs/herdr-server.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>__HOME__/Library/Logs/herdr-server.launchd.log</string>
+</dict>
+</plist>

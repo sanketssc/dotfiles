@@ -1,0 +1,41 @@
+# Core setup for a new Mac: terminal + editor + herdr/Collie + Claude + nushell.
+# Used by `./install.sh --core` (brew bundle --file Brewfile.core).
+
+tap "oven-sh/bun"
+
+# shell + prompt
+brew "nushell"
+brew "starship"
+brew "zoxide"
+brew "atuin"
+
+# terminal + editor
+brew "tmux"
+brew "neovim"
+brew "lazygit"
+brew "yazi"
+brew "fzf"
+brew "ripgrep"
+brew "fd"
+brew "bat"
+brew "eza"
+brew "jq"
+
+# git + dotfiles
+brew "git"
+brew "gh"
+brew "stow"
+
+# herdr + Collie (Collie's plugin build needs bun + git; herdr-agent-usage builds with cargo)
+brew "herdr"
+brew "oven-sh/bun/bun"
+brew "rust"
+brew "tailscale"
+
+# Claude (node for `npx skills`)
+brew "node"
+cask "claude-code"
+
+# terminal app + fonts
+cask "kitty"
+cask "font-monaspace"
