@@ -57,6 +57,14 @@ if ! xcode-select -p >/dev/null 2>&1; then
   exit 0
 fi
 
+# sudo once: ask up front, keep the timestamp fresh until this script exits
+# (/etc/zshenv and brew cask installers reuse it instead of prompting again)
+log "sudo (asked once for the whole run)"
+sudo -v
+( while kill -0 "$$" 2>/dev/null; do sudo -n true; sleep 50; done ) 2>/dev/null &
+SUDO_KEEPALIVE=$!
+trap 'kill "$SUDO_KEEPALIVE" 2>/dev/null || true' EXIT
+
 # 2. XDG environment — exported BEFORE any tool runs so nothing lands in ~
 log "XDG environment"
 for kv in "${XDG_ENV[@]}"; do export "${kv%%=*}=$HOME/${kv#*=}"; done
