@@ -8,3 +8,7 @@ karabiner/.config/karabiner/automatic_backups/
 herdr/.config/herdr/*
 !herdr/.config/herdr/config.toml
 !herdr/.config/herdr/local-plugins/
+# zed runtime data (config files are tracked)
+zed/.config/zed/prompts/
+zed/.config/zed/conversations/
+zed/.config/zed/settings_backup.json

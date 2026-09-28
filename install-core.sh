@@ -73,8 +73,10 @@ backup_conflicts() {
   done < <(cd "$DOTFILES/$pkg" && find . -mindepth 1 -type f -print)
 }
 
-log "Stowing nvim starship tmux kitty herdr"
-for pkg in nvim starship tmux kitty; do
+log "Stowing nvim starship tmux kitty zed herdr"
+# ~/.config must be a real dir, or stow folds it into the first package (other apps would then write into the repo)
+mkdir -p "$HOME/.config"
+for pkg in nvim starship tmux kitty zed; do
   backup_conflicts "$pkg"
   stow -t "$HOME" "$pkg"
 done
