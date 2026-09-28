@@ -8,6 +8,7 @@ format = """
  ➜\
 $directory\
 ${custom.giturl}\
+${custom.jj}\
 $git_branch\
 $git_state\
 $git_status\
@@ -145,6 +146,25 @@ echo "$GIT_REMOTE_SYMBOL "
 when = 'git rev-parse --is-inside-work-tree 2> /dev/null'
 format = "at $output"
 
+[custom.jj]
+description = "Jujutsu change-id, bookmarks, description, dirty"
+when = "jj root --quiet"
+command = '''
+jj --ignore-working-copy log --no-graph --color never -r @ -T '
+  separate(" ",
+    change_id.shortest(8),
+    if(bookmarks, "(" ++ bookmarks.join(",") ++ ")"),
+    if(description.first_line(), "\"" ++ description.first_line() ++ "\""),
+    if(empty, "○", "●")
+  )
+' 2>/dev/null
+'''
+symbol = "jj "
+style = "fg:peach bg:black"
+format = '  on [ $symbol$output ]($style)'
+ignore_timeout = true
+shell = ["sh", "--norc", "--noprofile"]
+
 [git_branch]
 symbol = "[](black) "
 # format =  ' [$symbol$branch(:$remote_branch)]($style)[]'
@@ -175,9 +195,9 @@ detect_files = ["go.mod"]
 # symbol = ""
 # format = '[[ $symbol( $version) ]]($style)'
 
-[java]
-symbol = " "
-format = '[[ $symbol( $version) ]]($style)'
+# [java]
+# symbol = " "
+# format = '[[ $symbol( $version) ]]($style)'
 
 [kotlin]
 symbol = ""

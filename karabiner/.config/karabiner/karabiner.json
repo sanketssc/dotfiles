@@ -5,6 +5,210 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "Cmd + Shift + Hyper + f -> type word",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Type text sequence",
+                                "from": {
+                                    "key_code": "f",
+                                    "modifiers": {
+                                        "mandatory": ["command", "shift"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "f",
+                                        "modifiers": []
+                                    },
+                                    {
+                                        "key_code": "u",
+                                        "modifiers": []
+                                    },
+                                    {
+                                        "key_code": "c",
+                                        "modifiers": []
+                                    },
+                                    {
+                                        "key_code": "k",
+                                        "modifiers": []
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hold Command+Q to Quit (Accidental Quit Prevention)",
+                        "manipulators": [
+                            {
+                                "description": "Require holding Cmd+Q for 500ms",
+                                "from": {
+                                    "key_code": "q",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "parameters": { "basic.to_if_held_down_threshold_milliseconds": 500 },
+                                "to_if_held_down": [
+                                    {
+                                        "key_code": "q",
+                                        "modifiers": ["left_command"]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + Backspace -> Forward Delete",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Forward Delete with Hyper",
+                                "from": {
+                                    "key_code": "delete_or_backspace",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [{ "key_code": "delete_forward" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Mouse Control: Cmd + Hyper (Caps Lock) + hjkl & u/i",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Mouse Up: Cmd + Hyper + k",
+                                "from": {
+                                    "key_code": "k",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "mouse_key": { "y": -1536 } }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Mouse Down: Cmd + Hyper + j",
+                                "from": {
+                                    "key_code": "j",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "mouse_key": { "y": 1536 } }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Mouse Left: Cmd + Hyper + h",
+                                "from": {
+                                    "key_code": "h",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "mouse_key": { "x": -1536 } }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Mouse Right: Cmd + Hyper + l",
+                                "from": {
+                                    "key_code": "l",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "mouse_key": { "x": 1536 } }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Left Click: Cmd + Hyper + u",
+                                "from": {
+                                    "key_code": "u",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "pointing_button": "button1" }],
+                                "type": "basic"
+                            },
+                            {
+                                "conditions": [
+                                    {
+                                        "name": "hyper",
+                                        "type": "variable_if",
+                                        "value": 1
+                                    }
+                                ],
+                                "description": "Right Click: Cmd + Hyper + i",
+                                "from": {
+                                    "key_code": "i",
+                                    "modifiers": {
+                                        "mandatory": ["command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "pointing_button": "button2" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "Caps Lock → ⌃⌥⇧⌘ (Hyper) when held, F12 when tapped",
                         "enabled": false,
                         "manipulators": [
@@ -1636,9 +1840,25 @@
                         "vendor_id": 5426
                     },
                     "ignore": false
+                },
+                {
+                    "identifiers": {
+                        "is_keyboard": true,
+                        "is_pointing_device": true,
+                        "product_id": 64009,
+                        "vendor_id": 13652
+                    },
+                    "ignore": false
                 }
             ],
             "name": "Default",
+            "selected": true,
+            "simple_modifications": [
+                {
+                    "from": { "apple_vendor_top_case_key_code": "keyboard_fn" },
+                    "to": [{ "key_code": "left_control" }]
+                }
+            ],
             "virtual_hid_keyboard": { "keyboard_type_v2": "ansi" }
         }
     ]
