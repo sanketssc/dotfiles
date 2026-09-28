@@ -1,0 +1,17 @@
+# worktrunk user config (machine-local, not committed to repos)
+#
+# Per project:
+#   worktree-path  — new worktrees land at  <repo>/<branch>  (sibling of .bare),
+#                    matching the existing dev/ and main/ worktrees.
+#   post-start.copy-env — on new worktree creation, copy gitignored env files
+#                    from the primary worktree (dev / main) into the new one.
+#                    Which files copy is set by each repo's primary-worktree
+#                    `.worktreeinclude` (currently the .env files).
+
+[projects."github.com/matiks-com/matiks-client"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+post-start.copy-env = "wt step copy-ignored"
+
+[projects."github.com/matiks-com/matiks-monorepo"]
+worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"
+post-start.copy-env = "wt step copy-ignored"

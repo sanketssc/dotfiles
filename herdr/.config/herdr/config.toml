@@ -1,0 +1,206 @@
+# herdr config — ported from ~/.config/tmux/tmux.conf
+# Full reference: `herdr --default-config`   Validate: `herdr config check`
+# Reload inside herdr: prefix+r (same as tmux)
+
+onboarding = false
+
+[theme]
+# tmux: @catppuccin_flavor "mocha"
+name = "catppuccin"
+
+[terminal]
+# tmux: split-window -c "#{pane_current_path}" — new panes/tabs follow the source pane cwd
+new_cwd = "follow"
+
+[keys]
+# tmux: set -g prefix C-Space ; bind C-Space send-prefix
+# (pressing the prefix twice sends a literal ctrl+space, like send-prefix)
+prefix = "ctrl+space"
+
+# tmux: bind r source-file ...
+reload_config = "prefix+r"
+
+# tmux: bind | split-window -h ; bind - split-window -v
+split_vertical = "prefix+|"       # side-by-side
+split_horizontal = "prefix+minus" # stacked
+
+# tmux: bind v copy-mode (vi keys: v select, y yank)
+copy_mode = ["prefix+v", "prefix+["]
+
+# tmux: bind -r h/j/k/l resize-pane 5
+resize_pane_left = "prefix+h"
+resize_pane_down = "prefix+j"
+resize_pane_up = "prefix+k"
+resize_pane_right = "prefix+l"
+# modal resize for repeated presses (tmux -r repeat equivalent)
+resize_mode = "prefix+shift+r"
+
+# tmux: vim-tmux-navigator C-h/j/k/l
+# NOTE: herdr has no is-vim passthrough, so inside nvim these jump herdr panes,
+# not nvim splits. Use <C-w>h/j/k/l for nvim splits, or clear these four lines.
+focus_pane_left = "ctrl+h"
+focus_pane_down = "ctrl+j"
+focus_pane_up = "ctrl+k"
+focus_pane_right = "ctrl+l"
+
+# tmux: bind -r m resize-pane -Z (plus tmux default z)
+zoom = ["prefix+m", "prefix+z"]
+
+# tmux defaults: c new window, 1..9 select (base-index 1), p prev, x kill pane
+new_tab = "prefix+c"
+switch_tab = "prefix+1..9"
+previous_tab = "prefix+p"
+close_pane = "prefix+x"
+# tmux default: , rename window ($ / & dropped: shift+4 / shift+7 are focus_agent)
+rename_tab = ["prefix+comma", "prefix+shift+t"]
+rename_workspace = "prefix+shift+w"
+close_tab = "prefix+shift+x"
+
+# tmux: bind n command-prompt "new-session -s '%%'"  (tmux sessions ≈ herdr workspaces)
+new_workspace = ["prefix+n", "prefix+shift+n"]
+next_tab = ""
+
+# tmux: tmux-sessionx on prefix+o, choose-tree on prefix+w
+workspace_picker = ["prefix+o", "prefix+w"]
+open_notification_target = "prefix+shift+o"
+
+# tmux: prefix+f tmux-sessionizer → herdr searchable session navigator
+goto = ["prefix+f", "prefix+g"]
+
+# agents panel (no tmux equivalent): cycle sidebar agent rows, or jump by number
+next_agent = "prefix+shift+j"
+previous_agent = "prefix+shift+k"
+focus_agent = "prefix+shift+1..9"
+
+# tmux: display-popup floats (run in focused pane cwd, like -d pane_current_path)
+[[keys.command]]
+key = "prefix+ctrl+y"
+type = "popup"
+command = "yazi"
+width = "90%"
+height = "90%"
+description = "yazi"
+
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "popup"
+command = "zsh"
+width = "80%"
+height = "80%"
+description = "floating shell"
+
+[[keys.command]]
+key = "prefix+ctrl+g"
+type = "popup"
+command = "lazygit"
+width = "90%"
+height = "90%"
+description = "lazygit"
+
+[[keys.command]]
+key = "prefix+ctrl+m"
+type = "popup"
+command = "rmpc"
+width = "95%"
+height = "95%"
+description = "music"
+
+# plugins (herdr plugin action list shows ids; use plugin-id.action)
+[[keys.command]]
+key = "prefix+i"
+type = "plugin_action"
+command = "persiyanov.reviewr.toggle"
+description = "reviewr: diff review pane"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate: comment on selection"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.manage"
+description = "annotate: manage annotations"
+
+[[keys.command]]
+key = "prefix+y"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "annotate: copy annotations as agent context"
+
+[[keys.command]]
+key = "prefix+shift+m"
+type = "plugin_action"
+command = "nicosuave.memex.palette"
+description = "memex: search past sessions"
+
+[[keys.command]]
+key = "prefix+shift+u"
+type = "plugin_action"
+command = "herdr-agent-usage.open-settings"
+description = "agent usage / quota"
+
+# tmux: bind d display-menu "Config" (herdr has no menus; fzf picker instead)
+[[keys.command]]
+key = "prefix+d"
+type = "popup"
+command = "f=$(printf '%s\\n' ~/.zshrc ~/.zprofile ~/.config/herdr/config.toml ~/.config/tmux/tmux.conf ~/dotfiles/nvim/.config/nvim | fzf --prompt='config> ') && cd \"$(dirname \"$f\")\" && nvim \"$f\""
+width = "75%"
+height = "75%"
+description = "edit configs"
+
+[ui]
+# tmux: status-position bottom
+tab_bar_position = "top"
+# tmux: new-window creates immediately (no name prompt)
+prompt_new_tab_name = false
+# tmux-style internal splitters, no outer frame
+pane_outer_borders = true
+pane_gaps = true
+# tmux: mouse on; drag-select copies to clipboard (both herdr defaults)
+mouse_capture = true
+copy_on_select = true
+# distinct glyphs for blocked / working / done / idle instead of plain dots
+status_indicators = "symbols"
+# room for session titles
+sidebar_max_width = 40
+
+# tmux status-right: zoom flag, battery, online status
+tab_bar_right_separator = " │ "
+tab_bar_right = [
+  { type = "zoom" },
+  { type = "command", command = "pmset -g batt | grep -Eo '[0-9]+%' | head -1", interval_seconds = 60 },
+  { type = "command", command = "ping -c1 -t1 1.1.1.1 >/dev/null 2>&1 && echo '󰖩 on' || echo '󰖪 off'", interval_seconds = 15, timeout_seconds = 3 },
+]
+
+# agents panel: two lines = taller click target. line 1 title, line 2 quiet folder (+ remote machine); "Local" hidden
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  ["state_icon", { token = "terminal_title_stripped", fg = "#cdd6f4", bold = false, dim = false, rules = [{ equals = "Claude Code", fg = "#6c7086" }] }],
+  [{ token = "machine", fg = "#cba6f7", bold = false, dim = false, rules = [{ equals = "Local", hide = true }] }, { token = "workspace", fg = "#89b4fa", bold = false, dim = true }, { token = "agent", fg = "#fab387", dim = true }],
+]
+
+# claude rows: same, without the redundant "claude" label
+[ui.sidebar.agents.rows_by_agent]
+claude = [
+  ["state_icon", { token = "terminal_title_stripped", fg = "#cdd6f4", bold = false, dim = false, rules = [{ equals = "Claude Code", fg = "#6c7086" }] }],
+  [{ token = "machine", fg = "#cba6f7", bold = false, dim = false, rules = [{ equals = "Local", hide = true }] }, { token = "workspace", fg = "#89b4fa", bold = false, dim = true }],
+]
+
+# spaces panel: bold workspace, green branch
+[ui.sidebar.spaces]
+rows = [
+  ["state_icon", { token = "workspace", bold = true }],
+  [{ token = "branch", fg = "#a6e3a1" }, "git_status"],
+]
+
+[session]
+# tmux-resurrect / tmux-continuum: herdr saves layout + restores built in
+resume_agents_on_restore = true
+
+[experimental]
+# tmux-resurrect @resurrect-capture-pane-contents "on"
+pane_history = true
