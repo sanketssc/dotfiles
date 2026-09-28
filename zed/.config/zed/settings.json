@@ -7,6 +7,13 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  // extensions the theme/icon_theme below depend on; installed on startup (html is Zed's default)
+  "auto_install_extensions": {
+    "html": true,
+    "dark-glass-theme": true,
+    "colored-zed-icons-theme": true,
+    "catppuccin-icons": true,
+  },
   "cursor_animation": {
     "enabled": true
   },
