@@ -61,7 +61,7 @@ export PATH=~/.console-ninja/.bin:$PATH
 # bun
 # bun completions
 [ -s "/Users/personal/.bun/_bun" ] && source "/Users/personal/.bun/_bun"
-export BUN_INSTALL="$HOME/.bun"
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"   # XDG layout: set in /etc/zshenv
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # 010 Hex Editor
@@ -70,9 +70,9 @@ export PATH="$PATH:/Applications/010 Editor.app/Contents/CmdLine" #ADDED BY 010 
 #------------Langs------------
 
 # Golang
-export GOPATH=$HOME/go
+export GOPATH="${GOPATH:-$HOME/go}"   # XDG layout: set in /etc/zshenv
 export PATH=$GOPATH/bin:$PATH
-export PATH=$PATH:$(go env GOPATH)/bin
+command -v go >/dev/null && export PATH="$PATH:$(go env GOPATH)/bin"
 
 # Setting PATH for Python 3.11
 # The original version is saved in .zprofile.pysave
