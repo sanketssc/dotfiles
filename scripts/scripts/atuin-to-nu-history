@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Import atuin's shell history (incl. everything imported from zsh) into nushell's own history,
+# so nu's inline hints and up-arrow know it too. atuin itself already serves ctrl+r in nu.
+# Idempotent: only commands newer than the newest entry already in nu's history are imported.
+set -euo pipefail
+DB="${1:-${XDG_DATA_HOME:-$HOME/.local/share}/atuin/history.db}"
+NU_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/nushell"
+[[ -f "$DB" ]] || { echo "no atuin db at $DB"; exit 1; }
+exec nu --config "$NU_DIR/config.nu" --env-config "$NU_DIR/env.nu" -c "
+# nu stores ms, atuin ns: compare in ms so the newest entry isn't re-imported
+let since_ms = (try { (history | last | get start_timestamp | into int) // 1_000_000 } catch { 0 })
+let rows = (open '$DB'
+  | query db 'select command, timestamp, duration, exit, cwd, hostname from history where deleted_at is null order by timestamp'
+  | where {|r| (\$r.timestamp // 1_000_000) > \$since_ms})
+\$rows | each {|r| {
+    command: \$r.command,
+    start_timestamp: (\$r.timestamp | into datetime),
+    duration: (if \$r.duration > 0 { \$r.duration | into duration } else { 0sec }),
+    exit_status: \$r.exit, cwd: \$r.cwd, hostname: \$r.hostname
+  }} | history import
+print \$'imported (\$rows | length) commands into (\$nu.history-path)'
+"
