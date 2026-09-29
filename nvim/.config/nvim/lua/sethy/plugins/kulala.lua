@@ -1,7 +1,11 @@
 vim.filetype.add({ extension = { http = "http" } })
 
 return {
-    "mistweaverco/kulala.nvim",
+    -- mistweaverco/kulala.nvim went private (Sep 2026). This recovery copy still carries upstream's
+    -- history; pinned to the exact upstream commit we ran before (pure Lua + system curl, no
+    -- kulala-core binary). Don't unpin: its newer commits fetch a rebuilt binary from a third party.
+    "andycowan/kulala.nvim",
+    commit = "6656c9d332735ca6a27725e0fb45a1715c4372d9",
     ft = { "http", "rest" },
     keys = {
         { "<leader>oh", function() require("kulala").scratchpad() end,              desc = "HTTP scratchpad" },
