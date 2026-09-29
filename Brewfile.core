@@ -72,6 +72,7 @@ brew "awscli"
 cask "docker-desktop"
 cask "gcloud-cli"
 cask "android-studio"
+brew "scrcpy"            # mirror/control an Android phone over adb; drop an .apk on its window to install
 
 # apps
 cask "raycast"
