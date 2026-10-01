@@ -6,7 +6,9 @@
 alias gt = git
 alias ga = git add .
 alias gc = git commit -m
-alias gpr = git pull --rebase         # shadows coreutils' gpr (GNU pr), as it did in zsh
+# shadows coreutils' gpr (GNU pr), as it did in zsh. `--rebase=true` == `--rebase`, but carapace
+# reads a bare `--rebase` as taking a value, which broke `gpr <TAB>` (remotes, branches, flags).
+alias gpr = git pull --rebase=true
 alias gP = git push
 alias gco = git checkout
 alias gcb = git checkout -b

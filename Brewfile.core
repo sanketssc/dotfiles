@@ -9,6 +9,7 @@ brew "nushell"
 brew "starship"
 brew "zoxide"
 brew "atuin"
+brew "carapace"          # nushell tab completion for external CLIs (git, gh, docker, ...)
 
 # terminal + editor
 brew "tmux"

@@ -157,6 +157,14 @@ done
 # herdr keeps sockets, logs and session state in ~/.config/herdr: link only config.toml + local-plugins
 backup_conflicts "$DOTFILES" herdr "$HOME"
 stow -d "$DOTFILES" -t "$HOME" --no-folding herdr
+# carapace (nushell completions): only its zsh-bridge rc is tracked; unfolded so the bridge's
+# .zcompdump cache stays out of the repo
+backup_conflicts "$DOTFILES" carapace "$HOME"
+stow -d "$DOTFILES" -t "$HOME" --no-folding carapace
+# Docker Desktop puts CLI plugins (compose, buildx, ...) in ~/.docker/cli-plugins, but with
+# DOCKER_CONFIG set (XDG_ENV) the CLI only looks in $DOCKER_CONFIG/cli-plugins
+mkdir -p "$XDG_CONFIG_HOME/docker"
+[[ -e "$XDG_CONFIG_HOME/docker/cli-plugins" ]] || ln -s "$HOME/.docker/cli-plugins" "$XDG_CONFIG_HOME/docker/cli-plugins"
 # personal scripts go to ~/.local/bin (the old Mac keeps them in ~/scripts)
 backup_conflicts "$DOTFILES/scripts" scripts "$HOME/.local/bin"
 stow -d "$DOTFILES/scripts" -t "$HOME/.local/bin" scripts
