@@ -19,8 +19,8 @@
 [alias]
 	delbr = "!f() { b=$1; git branch -d \"$b\" && git push origin --delete \"$b\"; }; f"
 	delbrf = "!f() { b=$1; git branch -D \"$b\" && git push origin --delete \"$b\"; }; f"
-# Credential helper per OS: macOS gets osxkeychain from git's own system config (Homebrew's
-# /opt/homebrew/etc/gitconfig, Apple's git too); invok3r sets gh's helper in config.local.
+# Credential helper per OS: macOS gets the keychain helper from git's own system config (both
+# Homebrew's and Apple's git set it); invok3r sets gh's helper in config.local.
 # per-machine overrides, e.g. the https->ssh GitHub rewrite (only on machines with a GitHub SSH key)
 [include]
 	path = config.local

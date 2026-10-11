@@ -10,7 +10,7 @@
 # <command> is sh syntax. A name runs once on this Mac (one Metro on port 8081): starting a name that
 # already runs in the same folder reuses it, in another folder it fails and names the running pane.
 # --wait-for waits (default 180 s) until the output contains <text>, e.g. 'Waiting on'.
-# Claude sessions use this instead of Bash run_in_background (hook ~/.config/claude/hooks/no-bg-shells.sh).
+# Claude sessions use this instead of Bash run_in_background (hook no-bg-shells.sh in the Claude config dir).
 set -eu
 herdr=${HERDR_BIN_PATH:-herdr}
 state=$HOME/.cache/bg-tab
