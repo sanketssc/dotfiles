@@ -234,6 +234,14 @@ launchctl bootout "gui/$(id -u)/dev.herdr.server" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 sleep 2
 
+# 11b. dev cache cleanup every 3h (cache-cleanup.sh sources /etc/zshenv for the XDG paths)
+log "cache-cleanup LaunchAgent"
+PLIST="$HOME/Library/LaunchAgents/dev.sanket.cache-cleanup.plist"
+sed -e "s|__HOME__|$HOME|g" "$DOTFILES/launchd/dev.sanket.cache-cleanup.plist.template" > "$PLIST"
+plutil -lint "$PLIST" >/dev/null
+launchctl bootout "gui/$(id -u)/dev.sanket.cache-cleanup" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
+
 # 12. herdr plugins
 log "herdr plugins"
 herdr plugin link "$HOME/.config/herdr/local-plugins/tab-numbers" >/dev/null 2>&1 || warn "tab-numbers: already linked or failed"

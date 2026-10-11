@@ -8,6 +8,10 @@
 set -uo pipefail
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin
 export LC_ALL=C
+# launchd starts us without the XDG layout's env (GRADLE_USER_HOME, GOPATH, NPM_CONFIG_CACHE,
+# CLAUDE_CONFIG_DIR, XDG_CONFIG_HOME for herdr's socket, ...); /etc/zshenv is the one list.
+# shellcheck disable=SC1091
+[ -r /etc/zshenv ] && . /etc/zshenv
 
 case "${1:---dry-run}" in
   --dry-run) MODE=dry-run ;;
@@ -33,14 +37,19 @@ STATE="$HOME/Library/Caches/cache-cleanup"
 
 MONO="$HOME/Documents/matiks/matiks-monorepo"
 CLIENT="$HOME/Documents/matiks/matiks-client"
+ADMIN="$HOME/Documents/matiks/admin-client"
+REPOS=("$MONO" "$CLIENT" "$ADMIN")
 DISK_CACHE="$HOME/.cache/bazel-disk-cache"
+# Bazel's macOS output_user_root: ~/Library/Caches/bazel on one Mac, /private/var/tmp on another.
 BZ_ROOT="$HOME/Library/Caches/bazel/_bazel_$U"
+[ -d "$BZ_ROOT" ] || [ ! -d "/private/var/tmp/_bazel_$U" ] || BZ_ROOT="/private/var/tmp/_bazel_$U"
 BZ_MAIN_OB="$BZ_ROOT/$(printf %s "$MONO" | md5)"
 BZ_CA="$BZ_ROOT/cache/repos/v1/content_addressable"
-GRADLE="$HOME/.gradle"
-GOCACHE_DIR="$HOME/Library/Caches/go-build"
-GOMOD="$HOME/go/pkg/mod"
-NPM="$HOME/.npm"
+GRADLE="${GRADLE_USER_HOME:-$HOME/.gradle}"
+GOCACHE_DIR="${GOCACHE:-$HOME/Library/Caches/go-build}"
+GOMOD="${GOPATH:-$HOME/go}/pkg/mod"
+NPM="${NPM_CONFIG_CACHE:-$HOME/.npm}"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 DERIVED="$HOME/Library/Developer/Xcode/DerivedData"
 SIM_DEVICES="$HOME/Library/Developer/CoreSimulator/Devices"
 TMPD=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)
@@ -65,11 +74,11 @@ WT_BUILD_AGE_D=2
 # inside ALLOWED_ROOTS (or listed in ALLOWED_EXACT), is not inside NO_DESCEND,
 # and is not NO_ANCESTOR itself or a parent of it.
 ALLOWED_ROOTS=("$DISK_CACHE" "$BZ_ROOT" "$GRADLE" "$GOCACHE_DIR" "$NPM/_npx" "$DERIVED" "$TMPD"
-  "$MONO/.git/wt/trash" "$CLIENT/.git/wt/trash")
+  "$MONO/.git/wt/trash" "$CLIENT/.git/wt/trash" "$ADMIN/.git/wt/trash")
 ALLOWED_EXACT=("")
-NO_DESCEND=("$HOME/.claude" "$BZ_MAIN_OB" "$BZ_ROOT/install" "$BZ_ROOT/cache/repos/v1/contents" "$GOMOD"
-  "$CLIENT/android/app/build" "$CLIENT/android/app/.cxx")
-NO_ANCESTOR=("${NO_DESCEND[@]}" "${ALLOWED_ROOTS[@]}" "$MONO" "$CLIENT" "$BZ_ROOT/cache")
+NO_DESCEND=("$HOME/.claude" "$CLAUDE_DIR" "$BZ_MAIN_OB" "$BZ_ROOT/install" "$BZ_ROOT/cache/repos/v1/contents"
+  "$GOMOD" "$CLIENT/android/app/build" "$CLIENT/android/app/.cxx")
+NO_ANCESTOR=("${NO_DESCEND[@]}" "${ALLOWED_ROOTS[@]}" "${REPOS[@]}" "$BZ_ROOT/cache")
 
 # ---------------------------------------------------------------- setup
 START=$(date +%s)
@@ -418,7 +427,7 @@ t_metro() {
 
 t_wt_trash() {
   local name=worktrunk-trash before=0 freed=0 n=0 repo t e kb
-  for repo in "$MONO" "$CLIENT"; do
+  for repo in "${REPOS[@]}"; do
     t="$repo/.git/wt/trash"
     [ -d "$t" ] || continue
     before=$((before + $(du_kb "$t")))
@@ -459,6 +468,25 @@ t_android_worktrees() {
   row "$name" "$before" "$freed" "$n build dir(s) in non-main worktrees"
 }
 
+t_stale_worktrees() { # report only: removing worktrees always asks first (wt-stale)
+  local name=stale-worktrees repo n=0 stamp="$STATE/stale-notify.stamp"
+  : >"$WORK/stale"
+  for repo in "${REPOS[@]}"; do
+    [ -d "$repo/.git" ] || continue
+    with_timeout 120 wt -C "$repo" step prune --dry-run --format json 2>/dev/null |
+      jq -r --arg r "${repo##*/}" '.[]? | "\($r): \(.branch // .path // "?") (\(.reason // "merged"))"' \
+        >>"$WORK/stale" 2>/dev/null
+  done
+  n=$(wc -l <"$WORK/stale" | tr -d ' ')
+  while IFS= read -r l; do detail "$l"; done <"$WORK/stale"
+  info_row "$name" "$n" "merged into default branch; remove with: wt-stale (asks first)"
+  # One herdr notification a day at most, only from the scheduled run.
+  [ "$MODE" = apply ] && [ "$n" -gt 0 ] || return 0
+  newer_than "$stamp" -mmin -1440 && return 0
+  herdr notification show "$n stale worktree(s)" --body "Merged into default branch. Run wt-stale to review and remove." \
+    >/dev/null 2>&1 && touch "$stamp"
+}
+
 report_extras() { # dry-run only: things we never delete but the user should see
   local kb e
   kb=$(du_kb "$CLIENT/android/app/build" "$CLIENT/android/app/.cxx")
@@ -487,6 +515,7 @@ t_simulators
 t_metro
 t_wt_trash
 t_android_worktrees
+t_stale_worktrees
 [ "$MODE" = dry-run ] && report_extras
 if [ "$MODE" = apply ]; then verb=freed; else verb="would free"; fi
 echo "total: $verb $(hsize "$TOTAL_FREED") in $(($(date +%s) - START))s"
