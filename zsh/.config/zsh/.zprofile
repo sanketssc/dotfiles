@@ -71,8 +71,9 @@ export PATH="$PATH:/Applications/010 Editor.app/Contents/CmdLine" #ADDED BY 010 
 
 # Golang
 export GOPATH="${GOPATH:-$HOME/go}"   # XDG layout: set in /etc/zshenv
+# GOPATH is exported, so `go env GOPATH` would only repeat it; calling go here also fails at
+# shell start when go is a mise shim with no global version ("No version is set for shim: go")
 export PATH=$GOPATH/bin:$PATH
-command -v go >/dev/null && export PATH="$PATH:$(go env GOPATH)/bin"
 
 # Setting PATH for Python 3.11
 # The original version is saved in .zprofile.pysave
