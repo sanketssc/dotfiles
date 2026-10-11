@@ -1,0 +1,168 @@
+#!/bin/sh
+# bg-tab — run a long-running command (Metro, a dev server, a watcher, a long build) in its own herdr
+# tab instead of a Claude background shell, so it survives session restarts and never blocks one.
+#   bg-tab <name> [--cwd <dir>] [--wait-for <text>] [--timeout <s>] -- <command...>
+#       start it in a new tab of the caller's workspace (the user's focus stays where it is)
+#   bg-tab --read <name> [lines]          last output lines (default 60)
+#   bg-tab --wait <name> [--timeout <s>]  wait until the command exits; exits with its code
+#   bg-tab --stop <name>                  ctrl+c, then close the tab
+#   bg-tab --list                         every bg tab: name, pane, state, folder
+# <command> is sh syntax. A name runs once on this Mac (one Metro on port 8081): starting a name that
+# already runs in the same folder reuses it, in another folder it fails and names the running pane.
+# --wait-for waits (default 180 s) until the output contains <text>, e.g. 'Waiting on'.
+# Claude sessions use this instead of Bash run_in_background (hook ~/.config/claude/hooks/no-bg-shells.sh).
+set -eu
+herdr=${HERDR_BIN_PATH:-herdr}
+state=$HOME/.cache/bg-tab
+usage() { sed -n '4,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+[ $# -ge 1 ] || usage
+mkdir -p "$state"
+
+# Pane of a bg tab, by name or pane id; empty when there is none.
+find_pane() {
+  case $1 in
+    *:*) "$herdr" pane get "$1" >/dev/null 2>&1 && printf '%s\n' "$1" ;;
+    *) "$herdr" pane list | jq -r --arg n "$1" '.result.panes[] | select(.tokens.bgtab == $n) | .pane_id' | head -1 ;;
+  esac
+}
+name_of() { "$herdr" pane get "$1" | jq -r '.result.pane.tokens.bgtab // empty'; }
+# True while a command runs in the pane (the shell is not in the foreground).
+running() {
+  "$herdr" pane process-info --pane "$1" 2>/dev/null |
+    jq -e '.result.process_info | .foreground_process_group_id != .shell_pid' >/dev/null
+}
+read_out() { { "$herdr" pane read "$1" --source recent-unwrapped --lines "$2" 2>/dev/null || true; } | awk 1; }
+need_pane() {
+  pane=$(find_pane "$1")
+  [ -n "$pane" ] || { echo "bg-tab: no bg tab named $1 (bg-tab --list)" >&2; exit 1; }
+}
+
+case $1 in
+  --list)
+    "$herdr" pane list | jq -r '.result.panes[] | select(.tokens.bgtab) | [.tokens.bgtab, .pane_id] | @tsv' |
+      while IFS="$(printf '\t')" read -r n p; do
+        if running "$p"; then s=running; elif [ -f "$state/$n.exit" ]; then s="exited $(cat "$state/$n.exit")"; else s=idle; fi
+        printf '%s\t%s\t%s\t%s\n' "$n" "$p" "$s" "$(cat "$state/$n.cwd" 2>/dev/null || true)"
+      done
+    exit 0 ;;
+  --read)
+    [ $# -ge 2 ] || usage
+    need_pane "$2"
+    read_out "$pane" "${3:-60}"
+    exit 0 ;;
+  --wait)
+    [ $# -ge 2 ] || usage
+    need_pane "$2"
+    n=$(name_of "$pane")
+    timeout=0
+    [ "${3:-}" = --timeout ] && timeout=${4:?}
+    start=$(date +%s)
+    while running "$pane"; do
+      if [ "$timeout" -gt 0 ] && [ $(($(date +%s) - start)) -ge "$timeout" ]; then
+        echo "TIMEOUT $n pane=$pane still running"; exit 124
+      fi
+      sleep 2
+      "$herdr" pane get "$pane" >/dev/null 2>&1 || { echo "GONE $n pane=$pane (tab closed)"; exit 1; }
+    done
+    code=$(cat "$state/$n.exit" 2>/dev/null || echo unknown)
+    echo "EXITED $n pane=$pane code=$code"
+    read_out "$pane" 40
+    case $code in '' | *[!0-9]*) exit 1 ;; *) exit "$code" ;; esac ;;
+  --stop)
+    [ $# -ge 2 ] || usage
+    need_pane "$2"
+    n=$(name_of "$pane")
+    tab=$("$herdr" pane get "$pane" | jq -r '.result.pane.tab_id')
+    i=0
+    while running "$pane" && [ $i -lt 10 ]; do
+      [ $((i % 4)) -eq 0 ] && "$herdr" pane send-keys "$pane" ctrl+c >/dev/null 2>&1 || true
+      sleep 1; i=$((i + 1))
+    done
+    "$herdr" tab close "$tab" >/dev/null
+    [ -n "$n" ] && rm -f "$state/$n.sh" "$state/$n.cmd" "$state/$n.cwd" "$state/$n.exit"
+    echo "STOPPED $n pane=$pane"
+    exit 0 ;;
+  -*) usage ;;
+esac
+
+name=$(printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-' '-' | sed 's/^-*//; s/-*$//')
+[ -n "$name" ] || usage
+shift
+cwd=$PWD
+wait_for=
+timeout=180
+while [ $# -gt 0 ]; do
+  case $1 in
+    --cwd) cwd=${2:?}; shift 2 ;;
+    --wait-for) wait_for=${2:?}; shift 2 ;;
+    --timeout) timeout=${2:?}; shift 2 ;;
+    --) shift; break ;;
+    *) usage ;;
+  esac
+done
+[ $# -ge 1 ] || usage
+cwd=$(cd "$cwd" && pwd)
+ws=${HERDR_WORKSPACE_ID:-}
+[ -n "$ws" ] || { echo "bg-tab: run inside herdr (HERDR_WORKSPACE_ID is not set)" >&2; exit 1; }
+
+pane=$(find_pane "$name")
+if [ -n "$pane" ] && running "$pane"; then
+  old=$(cat "$state/$name.cwd" 2>/dev/null || true)
+  if [ "$old" = "$cwd" ]; then
+    echo "RUNNING $name pane=$pane cwd=$cwd (already started; bg-tab --read $name)"
+    exit 0
+  fi
+  echo "bg-tab: $name already runs in ${old:-another folder} (pane $pane); stop it first: bg-tab --stop $name" >&2
+  exit 1
+fi
+if [ -z "$pane" ]; then
+  pane=$("$herdr" tab create --workspace "$ws" --cwd "$cwd" --label "bg-$name" --no-focus | jq -r '.result.root_pane.pane_id')
+  "$herdr" pane rename "$pane" "bg-$name" >/dev/null 2>&1 || true
+  "$herdr" pane report-metadata "$pane" --source bg-tab --token "bgtab=$name" >/dev/null
+  sleep 1
+fi
+
+# The tab's shell is the user's (Nushell), so the command runs from an sh script. The traps record
+# the exit code also when the command is stopped with ctrl+c.
+printf '%s\n' "$*" >"$state/$name.cmd"
+printf '%s\n' "$cwd" >"$state/$name.cwd"
+rm -f "$state/$name.exit"
+cat >"$state/$name.sh" <<EOF
+#!/bin/sh
+x='$state/$name.exit'
+trap 'echo 130 >"\$x"; exit 130' INT
+trap 'echo 143 >"\$x"; exit 143' TERM HUP
+cd '$cwd' || { echo 1 >"\$x"; exit 1; }
+printf '\033[2mbg-tab $name, started by ${HERDR_PANE_ID:-?} at %s:\033[0m\n' "\$(date '+%H:%M')"
+cat '$state/$name.cmd'
+sh '$state/$name.cmd'
+echo \$? >"\$x"
+EOF
+"$herdr" pane run "$pane" "sh '$state/$name.sh'" >/dev/null
+
+if [ -n "$wait_for" ]; then
+  i=0
+  while [ $i -lt "$timeout" ]; do
+    if read_out "$pane" 200 | grep -qF -- "$wait_for"; then
+      echo "READY $name pane=$pane cwd=$cwd"
+      read_out "$pane" 15
+      exit 0
+    fi
+    [ -f "$state/$name.exit" ] && break
+    sleep 1; i=$((i + 1))
+  done
+  if [ -f "$state/$name.exit" ]; then
+    echo "EXITED $name pane=$pane code=$(cat "$state/$name.exit") before '$wait_for' appeared"
+  else
+    echo "NOT READY $name pane=$pane after ${timeout}s (still running; bg-tab --read $name)"
+  fi
+  read_out "$pane" 40
+  exit 1
+fi
+sleep 3
+if [ -f "$state/$name.exit" ]; then
+  echo "EXITED $name pane=$pane code=$(cat "$state/$name.exit")"
+else
+  echo "STARTED $name pane=$pane cwd=$cwd (bg-tab --read $name, bg-tab --stop $name)"
+fi
+read_out "$pane" 15

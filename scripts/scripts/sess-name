@@ -1,0 +1,48 @@
+#!/bin/sh
+# sess-name — rename a Claude session: herdr agent name plus the Claude /rename title.
+#   sess-name <pane> <name>        e.g. sess-name "$HERDR_PANE_ID" m1-hacker-check
+# Role sessions are named <role>-<task>: m1..m3 (masters), e1..e2 (explorers), sh-1..sh-2 (skills
+# hub), a1 (argent, the only device driver), e.g. m2-payments, e1-sandbox-review, sh-1-hacker-check,
+# a1-feed-links. A session renaming itself gets the /rename after its current turn ends.
+# Masters: the herdr name is m1-<topic>, the Claude title (what the sidebar shows) is just <topic>,
+# and the sidebar puts the status tag in front of it: ◐ m1-p hacker-check (see sess-status).
+set -eu
+herdr=${HERDR_BIN_PATH:-herdr}
+[ $# -eq 2 ] || { sed -n '3,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+pane=$1
+name=$(printf '%s' "$2" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9_-' '-' | sed 's/^[^a-z]*//')
+[ -n "$name" ] || { echo "sess-name: empty name" >&2; exit 2; }
+title=$name
+master=0
+if printf '%s\n' "$name" | grep -Eq '^m[0-9]+-.'; then
+  name=$(printf '%s\n' "$name" | sed -E 's/^(m[0-9]+)-[pwd]-(.+)$/\1-\2/')
+  title=${name#*-}
+  master=1
+fi
+name=$(printf '%s' "$name" | cut -c1-32)
+"$herdr" agent rename "$pane" "$name" >/dev/null
+# Type /rename only while the input box is empty (a dimmed suggestion counts as empty), so it never
+# joins a message the user is typing. Wait up to 2 minutes for that, then give up with a warning.
+esc=$(printf '\033')
+input_empty() {
+  line=$("$herdr" agent read "$pane" --source visible --ansi 2>/dev/null | grep '❯' | tail -1) || return 1
+  [ -z "$(printf '%s' "$line" | sed "s/$esc\[[0-9;]*m//g; s/^.*❯//; s/[[:space:]]//g")" ] && return 0
+  after=${line##*❯}
+  # Only blanks (the prompt pads with a no-break space) may come before a dimmed suggestion.
+  [ -z "$(printf '%s' "${after%%"$esc"*}" | LC_ALL=C tr -d ' \302\240')" ] || return 1
+  case $esc${after#*"$esc"} in "$esc[0m$esc[2m"* | "$esc[2m"*) return 0 ;; esac
+  return 1
+}
+i=0
+while ! input_empty && [ "$i" -lt 60 ]; do sleep 2; i=$((i + 1)); done
+if input_empty; then
+  "$herdr" agent prompt "$pane" "/rename $title" >/dev/null 2>&1 || true
+else
+  echo "sess-name: $pane input box busy, Claude title not changed (run: /rename $title)" >&2
+fi
+if [ "$master" = 1 ]; then
+  # New topic: never restore the old topic's done status at the end of this turn.
+  rm -f "$HOME/.cache/wt-dispatch/$(printf '%s' "$pane" | tr ':' '_').prev"
+  "$(dirname "$0")/sess-status" p "$pane" >/dev/null 2>&1 || true
+fi
+echo "$pane -> $name"

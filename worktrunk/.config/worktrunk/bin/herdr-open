@@ -1,23 +1,54 @@
 #!/bin/sh
-# worktrunk post-switch hook: open (or focus) the herdr workspace for a worktree.
+# worktrunk post-switch hook: open (or focus) the herdr workspace for a worktree. A newly opened
+# workspace also gets a Claude session in its shell pane, in the normal starting mode (auto), at the
+# effort level from settings (effortLevel).
 # Usage: herdr-open <worktree_path> <primary_worktree_path>
-# No-op outside herdr, for the primary checkout, and under Claude Code
-# (its --worktree / subagent worktrees shouldn't spawn herdr workspaces).
+# Skipped outside herdr and for the primary checkout. Worktrees Claude makes for itself
+# (subagents, `claude -w`) are skipped too, unless the caller sets WT_SPAWN=1, as wt-task does
+# when it hands a task to a new session (that workspace opens without taking focus).
+# WT_NO_CLAUDE=1 opens the workspace without a session.
 set -eu
 
 wt_path=$1
 primary=${2:-}
 
 [ "${HERDR_ENV:-}" = 1 ] || exit 0
-[ -z "${CLAUDECODE:-}" ] || exit 0
+[ -z "${CLAUDECODE:-}" ] || [ "${WT_SPAWN:-}" = 1 ] || exit 0
 [ -n "$primary" ] && [ "$wt_path" != "$primary" ] || exit 0
 
 herdr=${HERDR_BIN_PATH:-herdr}
 
-ws=$("$herdr" worktree list --cwd "$primary" |
-  jq -r --arg p "$wt_path" '.result.worktrees[] | select(.path == $p) | .open_workspace_id // empty')
+open_workspace() {
+  "$herdr" worktree list --cwd "$primary" |
+    jq -r --arg p "$wt_path" '.result.worktrees[] | select(.path == $p) | .open_workspace_id // empty'
+}
 
+ws=$(open_workspace)
 if [ -n "$ws" ]; then
+  [ "${WT_SPAWN:-}" = 1 ] && exit 0
   exec "$herdr" workspace focus "$ws" >/dev/null
 fi
-exec "$herdr" worktree open --cwd "$primary" --path "$wt_path" --focus >/dev/null
+focus=--focus
+[ "${WT_SPAWN:-}" = 1 ] && focus=--no-focus
+"$herdr" worktree open --cwd "$primary" --path "$wt_path" "$focus" >/dev/null
+
+[ -z "${WT_NO_CLAUDE:-}" ] || exit 0
+ws=$(open_workspace)
+pane=$("$herdr" pane list |
+  jq -r --arg w "$ws" 'first(.result.panes[] | select(.workspace_id == $w and .label == null) | .pane_id) // empty')
+[ -n "$pane" ] || exit 0
+
+# herdr agent names: [a-z][a-z0-9_-]{0,31}, unique among live agents.
+name=$(printf '%s' "${wt_path##*/}" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9_-' '-' | sed 's/^[^a-z]*//' | cut -c1-32)
+
+# A new pane's shell takes a moment to start, and herdr refuses a pane that isn't ready yet, so
+# retry for up to ~15s. agent_not_ready means Claude started but a first-run dialog (folder trust)
+# waits in the pane; the session carries on once it is answered there.
+i=0
+while :; do
+  if out=$("$herdr" agent start "$name" --kind claude --pane "$pane" --timeout 60000 2>&1); then exit 0; fi
+  case $out in *agent_not_ready*) exit 0 ;; esac
+  i=$((i + 1))
+  [ "$i" -lt 15 ] || { echo "herdr-open: could not start Claude in $pane: $out" >&2; exit 1; }
+  sleep 1
+done

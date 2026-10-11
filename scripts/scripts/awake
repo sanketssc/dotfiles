@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Keep the Mac running with the lid closed: network, Tailscale, SSH, herdr and agents keep
+# working while the display is off and the screen is locked. Uses `pmset disablesleep` (sudo).
+#
+#   awake on [--no-lock]   stay awake with the lid closed; turns the display off now, which locks
+#                          it once the Lock Screen delay passes (set "Require password after the
+#                          display is turned off" to Immediately for an instant lock)
+#   awake off              normal sleep again
+#   awake status           current state + power source
+#
+# A closed Mac that never sleeps still heats up and drains the battery: don't bag it while on.
+set -euo pipefail
+
+enabled() { [[ "$(pmset -g | awk '/SleepDisabled/{print $2}')" == 1 ]]; }
+
+case "${1:-status}" in
+  on)
+    sudo pmset -a disablesleep 1
+    echo "awake: on — lid can close, the Mac keeps running"
+    [[ "${2:-}" == "--no-lock" ]] || pmset displaysleepnow
+    ;;
+  off)
+    sudo pmset -a disablesleep 0
+    echo "awake: off — lid close sleeps again"
+    ;;
+  status)
+    if enabled; then echo "awake: on"; else echo "awake: off"; fi
+    pmset -g batt | sed -n '1p;2s/^[[:space:]]*//p'
+    ;;
+  *)
+    echo "usage: awake on [--no-lock] | off | status" >&2
+    exit 2
+    ;;
+esac

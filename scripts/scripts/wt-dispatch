@@ -1,0 +1,60 @@
+#!/bin/sh
+# wt-dispatch — hand a task to a session with wt-task, then wait for it to finish. Run it in the
+# background: the caller's conversation is not blocked and gets notified when it exits.
+#   wt-dispatch <wt-task arguments...>      dispatch (any wt-task mode), then wait
+#   wt-dispatch --wait <pane>...             only wait for sessions that are already working
+# Prints the wt-task line, then "SENT <pane>", then per pane:
+#   DONE pane=<pane> name=<name> status=<status> transcript=<path>
+# Read the result from the transcript (assistant text) or with: herdr agent read <pane>.
+set -eu
+herdr=${HERDR_BIN_PATH:-herdr}
+projects=${CLAUDE_CONFIG_DIR:-$HOME/.config/claude}/projects
+
+status_of() { "$herdr" agent get "$1" 2>/dev/null | jq -r '.result.agent.agent_status // empty'; }
+transcript_of() {
+  sid=$("$herdr" agent get "$1" 2>/dev/null | jq -r '.result.agent.agent_session.value // empty')
+  [ -n "$sid" ] && ls "$projects"/*/"$sid".jsonl 2>/dev/null | head -1
+}
+# Busy while working, or while a background shell or monitor of the session still runs.
+busy() {
+  [ "$(status_of "$1")" = working ] && return 0
+  "$herdr" agent read "$1" --source visible 2>/dev/null |
+    grep -Eq '[0-9]+ (shells?|monitors?)(, [0-9]+ (shells?|monitors?))* still running|· [0-9]+ (shells?|monitors?)'
+}
+
+[ $# -ge 1 ] || { sed -n '4,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+case $1 in
+  --close) exec wt-task "$@" ;;
+  --wait) shift; panes=$* ;;
+  *)
+    out=$(wt-task "$@")
+    echo "$out"
+    panes=$(printf '%s\n' "$out" | grep -o 'pane [A-Za-z0-9]*:[A-Za-z0-9]*' | head -1 | cut -d' ' -f2)
+    [ -n "$panes" ] || { echo "wt-dispatch: no pane in wt-task output" >&2; exit 1; }
+    ;;
+esac
+echo "SENT $panes"
+
+# A master that dispatches shows status p until its dispatches end: the marker file tells the
+# master-status Stop hook that work is still running for this master.
+if [ -n "${HERDR_PANE_ID:-}" ]; then
+  sess-status p "$HERDR_PANE_ID" >/dev/null 2>&1 || true
+  marks=$HOME/.cache/wt-dispatch/$(printf '%s' "$HERDR_PANE_ID" | tr ':' '_')
+  mkdir -p "$marks" && : >"$marks/$$"
+  trap 'rm -f "$marks/$$"' EXIT HUP INT TERM
+fi
+
+# Per pane: wait until it has started (or 2 minutes passed), then until it is idle and has stayed
+# idle for 30 seconds with no background shell or monitor left.
+for pane in $panes; do
+  i=0
+  while [ "$(status_of "$pane")" != working ] && [ "$i" -lt 24 ]; do sleep 5; i=$((i + 1)); done
+  quiet=0
+  while [ "$quiet" -lt 3 ]; do
+    sleep 10
+    if busy "$pane"; then quiet=0; else quiet=$((quiet + 1)); fi
+  done
+  name=$("$herdr" agent get "$pane" 2>/dev/null | jq -r '.result.agent.name // empty')
+  echo "DONE pane=$pane name=$name status=$(status_of "$pane") transcript=$(transcript_of "$pane")"
+done

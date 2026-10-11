@@ -1,5 +1,9 @@
 #!/bin/sh
-# worktrunk post-remove hook: close the herdr workspace of a removed worktree.
+# worktrunk post-remove hook: end the Claude sessions in a removed worktree's herdr workspace,
+# then close the workspace. Each session gets `/exit` first so it shuts down cleanly (its
+# SessionEnd hooks run: herdr session state, worktrunk's 🤖/💬 marker). A session in the middle
+# of a turn (e.g. the one that ran `wt remove`) exits after that turn. The workspace closes once
+# no session is left, after 2 minutes at most; a session stuck on a dialog is closed with it.
 # Usage: herdr-close <worktree_path>
 # Runs even outside herdr so workspaces don't go stale; no-op if herdr isn't running.
 set -eu
@@ -7,8 +11,23 @@ set -eu
 wt_path=$1
 herdr=${HERDR_BIN_PATH:-herdr}
 
-"$herdr" workspace list 2>/dev/null |
-  jq -r --arg p "$wt_path" '.result.workspaces[] | select(.worktree.checkout_path == $p) | .workspace_id' |
-  while read -r ws; do
-    "$herdr" workspace close "$ws" >/dev/null 2>&1 || true
+workspaces=$("$herdr" workspace list 2>/dev/null |
+  jq -r --arg p "$wt_path" '.result.workspaces[] | select(.worktree.checkout_path == $p) | .workspace_id') || exit 0
+
+# Sessions in a workspace that can still act on /exit (not waiting on a dialog).
+live_sessions() {
+  "$herdr" agent list 2>/dev/null |
+    jq -r --arg w "$1" '.result.agents[]? | select(.workspace_id == $w and .agent_status != "blocked") | .pane_id'
+}
+
+for ws in $workspaces; do
+  for pane in $(live_sessions "$ws"); do
+    "$herdr" agent prompt "$pane" "/exit" >/dev/null 2>&1 || true
   done
+  i=0
+  while [ -n "$(live_sessions "$ws")" ] && [ "$i" -lt 60 ]; do
+    sleep 2
+    i=$((i + 1))
+  done
+  "$herdr" workspace close "$ws" >/dev/null 2>&1 || true
+done

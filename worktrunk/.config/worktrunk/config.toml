@@ -7,12 +7,24 @@
 #                   project names, bazel-<dir> symlinks) and the parent stays clean.
 #   post-switch.herdr — inside herdr, open/focus a herdr workspace for the worktree.
 #   post-remove.herdr — close that herdr workspace once the worktree is gone.
-#   Nothing is copied into new worktrees from user config. matiks-monorepo's own
-#   .config/wt.toml still ships a post-start copy-ignored (approve/decline on first use).
-#   To copy env files later, add a .worktreeinclude to the primary checkout and use
-#   post-start.copy-env = "wt step copy-ignored --require-include".
+#   matiks-client / admin-client post-start.deps — copy node_modules from the primary
+#   checkout (reflinked on APFS: instant, no extra disk until files change), then
+#   `yarn install --frozen-lockfile` picks up whatever the branch's lockfile changed.
+#   What gets copied is the primary checkout's .worktreeinclude (node_modules/, plus
+#   android/app/*.keystore in matiks-client; the file is listed in that checkout's
+#   .git/info/exclude). matiks-client also runs `yarn use:dev` so .env.local exists.
+#   Keep the primary's node_modules fresh (`git pull && yarn install` there).
+#   The Android SDK and JDK come from ANDROID_HOME / JAVA_HOME in nushell's env.nu, so no
+#   local.properties.
+#   matiks-monorepo's own .config/wt.toml ships its post-start copy-ignored.
 
 [projects."github.com/matiks-com/*"]
 worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}.{{ branch | sanitize }}"
 post-switch.herdr = "~/.config/worktrunk/bin/herdr-open '{{ worktree_path }}' '{{ primary_worktree_path }}'"
 post-remove.herdr = "~/.config/worktrunk/bin/herdr-close '{{ worktree_path }}'"
+
+[projects."github.com/matiks-com/matiks-client"]
+post-start.deps = "wt step copy-ignored --require-include && yarn use:dev && yarn install --frozen-lockfile"
+
+[projects."github.com/matiks-com/admin-client"]
+post-start.deps = "wt step copy-ignored --require-include && yarn install --frozen-lockfile"

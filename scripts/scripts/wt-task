@@ -1,0 +1,181 @@
+#!/bin/sh
+# wt-task — hand a task to a Claude session. The dispatching session never does the work.
+#   wt-task [--name N] [--base B] <client|admin|monorepo> <branch> <task...>
+#                                                                  code change: worktree + session (an
+#                                                                  existing branch is checked out as is)
+#   wt-task [--name N] --main <client|admin|monorepo|hub|root> <task...>
+#                                                                  no code change: new session in a new
+#                                                                  tab of the repo's main workspace
+#   wt-task [--name N] --send <pane> <task...>                     next task for an existing session
+#   wt-task --close <pane>                                         end a --main session, close its tab
+# --name renames the session for the task (herdr agent name and Claude /rename title) before the
+# task is sent, so names always match what the session is doing. Sessions start in auto mode at the
+# effort level from settings (effortLevel); --main sessions can also read the sibling matiks repos.
+set -eu
+
+root=${MATIKS_ROOT:-$HOME/Documents/matiks}
+herdr=${HERDR_BIN_PATH:-herdr}
+
+usage() { sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+
+repo_dir() {
+  case $1 in
+    client | matiks-client) echo matiks-client ;;
+    admin | admin-client) echo admin-client ;;
+    monorepo | mono | matiks-monorepo) echo matiks-monorepo ;;
+    hub | skills-hub | matiks-skills-hub) echo matiks-skills-hub ;;
+    # The matiks root itself (no repo): for cross-repo roles (masters, explorers). --main only.
+    root | matiks) echo . ;;
+    *) usage ;;
+  esac
+}
+
+# herdr agent names: [a-z][a-z0-9_-]{0,31}.
+agent_name() { printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9_-' '-' | sed 's/^[^a-z]*//' | cut -c1-32; }
+
+status_of() { "$herdr" agent get "$1" 2>/dev/null | jq -r '.result.agent.agent_status // empty'; }
+
+# Wait until a session can take input; stop if it sits on a dialog.
+wait_ready() {
+  "$herdr" agent wait "$1" --until idle --until done --until blocked --timeout 60000 >/dev/null 2>&1 || true
+  if [ "$(status_of "$1")" = blocked ]; then
+    echo "wt-task: session $1 is waiting on a dialog (folder trust?). Answer it in herdr, then rerun:" >&2
+    echo "  wt-task --send $1 '<task>'" >&2
+    exit 1
+  fi
+}
+
+# Rename a session: herdr agent name, plus the Claude session title shown in the sidebar.
+rename_session() {
+  pane=$1
+  name=$(agent_name "$2")
+  [ -n "$name" ] || return 0
+  "$herdr" agent rename "$pane" "$name" >/dev/null 2>&1 || true
+  "$herdr" agent prompt "$pane" "/rename $name" >/dev/null 2>&1 || true
+  sleep 2
+}
+
+# Submit a task and make sure it starts. A session can report idle before its input box is ready,
+# and a prompt landing then stays unsubmitted, so give it a moment and press Enter again if needed.
+submit() {
+  pane=$1
+  task=$2
+  sleep 2
+  "$herdr" agent prompt "$pane" "$task" >/dev/null
+  i=0
+  status=idle
+  while { [ "$status" = idle ] || [ "$status" = done ]; } && [ "$i" -lt 8 ]; do
+    sleep 1
+    status=$(status_of "$pane")
+    i=$((i + 1))
+  done
+  case $status in idle | done) "$herdr" agent send-keys "$pane" Enter >/dev/null ;; esac
+}
+
+[ "${HERDR_ENV:-}" = 1 ] || { echo "wt-task: run inside herdr" >&2; exit 1; }
+
+name=""
+base=""
+while :; do
+  case ${1:-} in
+    --name) name=${2:-}; [ -n "$name" ] || usage; shift 2 ;;
+    --base) base=${2:-}; [ -n "$base" ] || usage; shift 2 ;;
+    *) break ;;
+  esac
+done
+
+case ${1:-} in
+  --close)
+    pane=${2:-}
+    [ -n "$pane" ] || usage
+    tab=$("$herdr" pane get "$pane" | jq -r '.result.pane.tab_id // empty')
+    "$herdr" agent prompt "$pane" "/exit" >/dev/null 2>&1 || true
+    i=0
+    while [ -n "$(status_of "$pane")" ] && [ "$i" -lt 30 ]; do
+      sleep 2
+      i=$((i + 1))
+    done
+    [ -z "$tab" ] || "$herdr" tab close "$tab" >/dev/null 2>&1 || true
+    echo "closed $pane"
+    ;;
+
+  --send)
+    [ $# -ge 3 ] || usage
+    pane=$2
+    shift 2
+    task=$*
+    wait_ready "$pane"
+    [ -z "$name" ] || rename_session "$pane" "$name"
+    submit "$pane" "$task"
+    echo "task sent -> pane $pane${name:+ ($name)}"
+    ;;
+
+  --main)
+    [ $# -ge 3 ] || usage
+    repo=$(repo_dir "$2")
+    shift 2
+    task=$*
+    if [ "$repo" = . ]; then primary=$root repo=matiks; else primary=$root/$repo; fi
+    ws=$("$herdr" workspace list | jq -r --arg p "$primary" --arg l "$repo" \
+      'first(.result.workspaces[] | select(.worktree.checkout_path == $p or .label == $l) | .workspace_id) // empty')
+    if [ -z "$ws" ]; then
+      ws=$("$herdr" workspace create --cwd "$primary" --label "$repo" --no-focus | jq -r '.result.workspace.workspace_id')
+    fi
+    tab=$("$herdr" tab create --workspace "$ws" --cwd "$primary" --no-focus | jq -r '.result.tab.tab_id')
+    pane=$("$herdr" pane list | jq -r --arg t "$tab" 'first(.result.panes[] | select(.tab_id == $t) | .pane_id) // empty')
+    [ -n "$pane" ] || { echo "wt-task: no pane in new tab $tab" >&2; exit 1; }
+    start_name=$(agent_name "${name:-$repo-$(date +%H%M%S)}")
+    i=0
+    until out=$("$herdr" agent start "$start_name" --kind claude --pane "$pane" --timeout 60000 -- --add-dir "$root" 2>&1); do
+      case $out in *agent_not_ready*) break ;; esac
+      i=$((i + 1))
+      [ "$i" -lt 15 ] || { echo "wt-task: could not start Claude in $pane: $out" >&2; exit 1; }
+      sleep 1
+    done
+    wait_ready "$pane"
+    [ -z "$name" ] || rename_session "$pane" "$name"
+    submit "$pane" "$task"
+    echo "task sent: $repo main checkout -> pane $pane${name:+ ($name)} (end it with: wt-task --close $pane)"
+    ;;
+
+  *)
+    [ $# -ge 3 ] || usage
+    repo=$(repo_dir "$1")
+    [ "$repo" != . ] || usage
+    branch=$2
+    shift 2
+    task=$*
+    primary=$root/$repo
+    path=$root/.worktrees/$repo.$(printf '%s' "$branch" | tr '/\\' '--')
+    # A branch that already exists (locally or on origin) is checked out as is; only a new one is
+    # created, from --base or the default branch.
+    git -C "$primary" fetch -q origin "$branch" 2>/dev/null || true
+    create=--create
+    if git -C "$primary" show-ref --verify --quiet "refs/heads/$branch" ||
+      git -C "$primary" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+      create=""
+      base=""
+    fi
+    # Project hooks that still need approval are skipped here (no terminal to ask on); approve
+    # them once with `wt -C <repo> config approvals add`.
+    WT_SPAWN=1 wt -C "$primary" switch $create "$branch" ${base:+--base "$base"} --no-cd </dev/null >/dev/null
+    [ -d "$path" ] || { echo "wt-task: worktree not found at $path" >&2; exit 1; }
+    # herdr-open (wt's post-switch hook) starts the session; wait for it to appear.
+    pane=""
+    i=0
+    while [ -z "$pane" ] && [ "$i" -lt 60 ]; do
+      ws=$("$herdr" worktree list --cwd "$primary" |
+        jq -r --arg p "$path" '.result.worktrees[] | select(.path == $p) | .open_workspace_id // empty')
+      if [ -n "$ws" ]; then
+        pane=$("$herdr" agent list |
+          jq -r --arg w "$ws" 'first(.result.agents[]? | select(.workspace_id == $w) | .pane_id) // empty')
+      fi
+      [ -n "$pane" ] || { sleep 1; i=$((i + 1)); }
+    done
+    [ -n "$pane" ] || { echo "wt-task: no Claude session appeared for $path" >&2; exit 1; }
+    wait_ready "$pane"
+    rename_session "$pane" "${name:-$branch}"
+    submit "$pane" "$task"
+    echo "task sent: $repo $branch -> $path (pane $pane; ends with: wt remove $branch)"
+    ;;
+esac

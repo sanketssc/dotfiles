@@ -1,0 +1,30 @@
+#!/bin/sh
+# wt-stale — review and remove matiks worktrees whose branches are merged into the default
+# branch. Asks per repo before removing anything; worktrees with uncommitted changes, locked
+# ones and anything younger than 1 day are always skipped by `wt step prune`.
+# cache-cleanup.sh only reports these (plus a daily herdr notification); it never removes them.
+# T3 Code's worktrees (~/.t3/worktrees, t3/* branches) are left to T3's own cleanup, so the
+# candidates are removed by branch with `wt remove` instead of a blanket `wt step prune`.
+set -eu
+
+root=${MATIKS_ROOT:-$HOME/Documents/matiks}
+t3_filter='.[]? | select(((.branch // "") | startswith("t3/")) or ((.path // "") | startswith($t3)) | not)'
+
+for repo in matiks-monorepo matiks-client admin-client; do
+  dir=$root/$repo
+  [ -d "$dir/.git" ] || continue
+  json=$(wt -C "$dir" step prune --dry-run --format json 2>/dev/null) || continue
+  candidates=$(printf '%s' "$json" | jq -r --arg t3 "$HOME/.t3/" "$t3_filter"' | "  \(.branch // .path // "?")  (\(.reason // "merged"))"')
+  branches=$(printf '%s' "$json" | jq -r --arg t3 "$HOME/.t3/" "$t3_filter"' | .branch // empty')
+  [ -n "$candidates" ] || continue
+  printf '%s:\n%s\n' "$repo" "$candidates"
+  [ -n "$branches" ] || { echo "  no branch names to remove; skipped"; continue; }
+  printf 'Remove these worktrees and branches? [y/N] '
+  read -r answer
+  case $answer in
+    # shellcheck disable=SC2086 # branch names never contain spaces
+    y | Y | yes) wt -C "$dir" remove --foreground $branches ;;
+    *) echo "  skipped" ;;
+  esac
+done
+echo "done"

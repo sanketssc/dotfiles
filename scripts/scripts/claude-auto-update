@@ -1,0 +1,193 @@
+#!/bin/sh
+# claude-auto-update — install the latest Claude Code, then restart every Claude session in herdr that
+# still runs an older version, resuming each conversation as is. Built for any number of sessions:
+# one `ps` finds outdated Claude processes (fast exit when there are none), panes are looked up in
+# parallel, and restarts run N at a time. launchd runs it at 00/04/08/12/16/20 h (on wake if asleep)
+# (~/Library/LaunchAgents/com.sanketssc.claude-auto-update.plist).
+#   claude-auto-update [--dry-run] [--no-update] [--force] [-j N] [--wait-working S] [pane...]
+#     --dry-run         print what would happen, change nothing
+#     --no-update       skip `claude update`, only restart sessions older than the installed version
+#     --force           restart even sessions already on the installed version (for testing)
+#     -j N              restarts in parallel (default 8)
+#     --wait-working S  how long to wait for busy sessions at the end of the run (default 300 s)
+#     pane...           limit to these panes (default: every Claude session in herdr)
+# Per session:
+#   working          deferred to the end of the run, restarted once idle, else left for the next run
+#   draft in input   skip (never type over the user's text); the next run retries
+#   dialog / survey  force close: Esc, /exit, then ctrl+c twice, then kill; after the resume it is
+#                    told its pending action was cancelled
+#   idle             /exit and resume
+# Background shells (Metro, servers) end with the old process; the summary names those sessions.
+# Log: ~/.cache/claude-auto-update/log
+set -u
+PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+export LANG LC_ALL
+herdr=${HERDR_BIN_PATH:-herdr}
+state=$HOME/.cache/claude-auto-update
+mkdir -p "$state"
+log=$state/log
+
+dry=0 update=1 force=0 only= par=8 waitw=300
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) dry=1 ;; --no-update) update=0 ;; --force) force=1 ;;
+    -j) par=$2; shift ;; --wait-working) waitw=$2; shift ;;
+    -h | --help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) only="$only $1" ;;
+  esac
+  shift
+done
+
+# One run at a time (launchd and a manual run can overlap).
+lock=$state/lock
+if ! mkdir "$lock" 2>/dev/null; then
+  if kill -0 "$(cat "$lock/pid" 2>/dev/null)" 2>/dev/null; then echo "already running"; exit 0; fi
+  rm -rf "$lock"; mkdir "$lock"
+fi
+echo $$ >"$lock/pid"
+results=$(mktemp -d "$state/run.XXXXXX")
+trap 'rm -rf "$lock" "$results"' EXIT INT TERM
+
+started=$(date +%s)
+say() { printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$log"; }
+
+if [ "$update" = 1 ] && [ "$dry" = 0 ]; then
+  out=$(timeout 300 claude update 2>&1) || true
+  say "claude update: $(printf '%s' "$out" | tail -1)"
+fi
+latest=$(basename "$(readlink "$HOME/.local/bin/claude")")
+say "installed version: $latest"
+
+esc=$(printf '\033')
+input_empty() { # empty input box, or only a dimmed suggestion
+  line=$("$herdr" agent read "$1" --source visible --ansi 2>/dev/null | grep '❯' | tail -1) || return 1
+  [ -z "$(printf '%s' "$line" | sed "s/$esc\[[0-9;]*m//g; s/^.*❯//; s/[[:space:]]//g")" ] && return 0
+  after=${line##*❯}
+  [ -z "$(printf '%s' "${after%%"$esc"*}" | LC_ALL=C tr -d ' \302\240')" ] || return 1
+  case $esc${after#*"$esc"} in "$esc[0m$esc[2m"* | "$esc[2m"*) return 0 ;; esac
+  return 1
+}
+status_of() { "$herdr" agent get "$1" 2>/dev/null | jq -r '.result.agent.agent_status // empty' 2>/dev/null; }
+exited() { case $(status_of "$1") in "" | unknown) return 0 ;; esac; return 1; }
+wait_exit() { i=0; while ! exited "$1" && [ $i -lt "$2" ]; do sleep 1; i=$((i + 1)); done; exited "$1"; }
+
+restart_one() { # pane pid version
+  p=$1 pid=$2 ver=$3 out=$results/$(printf '%s' "$1" | tr ':' '_')
+  info=$("$herdr" agent get "$p" 2>/dev/null) || { echo "SKIP $p (gone)" >"$out"; return; }
+  st=$(printf '%s' "$info" | jq -r '.result.agent.agent_status // empty')
+  if [ "$st" = working ]; then echo "DEFER $p $pid $ver" >"$out"; return; fi
+  name=$(printf '%s' "$info" | jq -r '.result.agent.name // empty')
+  sid=$(printf '%s' "$info" | jq -r '.result.agent.agent_session.value // empty')
+  label=${name:-unnamed}
+  [ -n "$sid" ] || { echo "SKIP $p $label (no session id)" >"$out"; return; }
+  screen=$("$herdr" agent read "$p" --source visible 2>/dev/null || true)
+  survey=0; printf '%s' "$screen" | grep -q 'How is Claude doing' && survey=1
+  if [ "$st" != blocked ] && [ "$survey" = 0 ] && ! input_empty "$p"; then
+    echo "SKIP $p $label (draft in input box)" >"$out"; return
+  fi
+  bgjobs=$(printf '%s' "$screen" | grep -oE '[0-9]+ (shells?|monitors?)' | tail -1 || true)
+  pinfo=$("$herdr" pane process-info --pane "$p" 2>/dev/null)
+  cwd=$(printf '%s' "$pinfo" | jq -r --argjson pid "$pid" '.result.process_info.foreground_processes[] | select(.pid == $pid) | .cwd')
+  # Keep the launch flags that matter; drop session selectors and any positional prompt.
+  flags=$(printf '%s' "$pinfo" | jq -r --argjson pid "$pid" '
+    [.result.process_info.foreground_processes[] | select(.pid == $pid) | .argv[1:]][0] as $a
+    | [range(0; $a | length) as $i
+       | if ($a[$i] | IN("--add-dir","--model","--permission-mode","--effort")) and ($i + 1 < ($a | length))
+         then [$a[$i], $a[$i + 1]]
+         elif ($a[$i] | IN("--dangerously-skip-permissions","--verbose")) then [$a[$i]]
+         else empty end] | flatten | map(@sh) | join(" ")')
+  tag=$("$herdr" pane get "$p" 2>/dev/null | jq -r '.result.pane.tokens.mtag // empty')
+  if [ "$dry" = 1 ]; then echo "PLAN $p $label $ver -> $latest ($st${bgjobs:+, $bgjobs}) claude --resume $sid $flags" >"$out"; return; fi
+
+  forced=
+  [ "$st" = blocked ] && forced=dialog
+  [ "$survey" = 1 ] && forced=${forced:-survey}
+  if [ -n "$forced" ]; then "$herdr" agent send-keys "$p" esc >/dev/null 2>&1; sleep 1; fi
+  "$herdr" agent prompt "$p" "/exit" >/dev/null 2>&1 || true
+  if ! wait_exit "$p" 20; then
+    forced=${forced:-hung}
+    "$herdr" agent send-keys "$p" ctrl+c >/dev/null 2>&1; sleep 0.5
+    "$herdr" agent send-keys "$p" ctrl+c >/dev/null 2>&1
+    if ! wait_exit "$p" 10; then
+      kill -TERM "$pid" 2>/dev/null; wait_exit "$p" 5 || kill -KILL "$pid" 2>/dev/null
+      wait_exit "$p" 5 || { echo "FAIL $p $label (could not stop pid $pid)" >"$out"; return; }
+    fi
+  fi
+  sleep 1
+  "$herdr" pane run "$p" "cd '$cwd'; claude --resume $sid $flags" >/dev/null 2>&1
+  i=0
+  until [ "$("$herdr" agent get "$p" 2>/dev/null | jq -r '.result.agent.agent_session.value // empty')" = "$sid" ] || [ $i -ge 90 ]; do
+    sleep 1; i=$((i + 1))
+  done
+  [ $i -ge 90 ] && { echo "FAIL $p $label (did not come back; resume: claude --resume $sid)" >"$out"; return; }
+  [ -n "$name" ] && "$herdr" agent rename "$p" "$name" >/dev/null 2>&1
+  [ -n "$tag" ] && "$herdr" pane report-metadata "$p" --source matiks-master --token "mtag=$tag" >/dev/null 2>&1
+  if [ -n "$forced" ] && [ "$forced" != survey ]; then
+    "$herdr" agent wait "$p" --until idle --until done --timeout 60000 >/dev/null 2>&1 || true
+    "$herdr" agent prompt "$p" "Claude Code was restarted for an update ($ver to $latest) while a dialog or step was pending, so that step was cancelled. Continue where you left off; ask again if you need an answer." >/dev/null 2>&1 || true
+  fi
+  echo "RESTARTED $p $label $ver -> $latest${forced:+ (force: $forced)}${bgjobs:+ (ended: $bgjobs)}" >"$out"
+}
+
+# Fast path: one ps call. Claude's process name is its version (e.g. 2.1.294).
+procs=$(ps -axo pid=,tty=,ucomm=,args= | awk '$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ && $4 ~ /(^|\/)claude$/ && $2 != "??" {print $1, $3}')
+outdated=$(printf '%s\n' "$procs" | awk -v v="$latest" -v f="$force" 'NF && (f == 1 || $2 != v)')
+total=$(printf '%s\n' "$procs" | grep -c . || true)
+if [ -z "$outdated" ]; then say "all $total session(s) on $latest; nothing to do ($(( $(date +%s) - started ))s)"; exit 0; fi
+say "$(printf '%s\n' "$outdated" | grep -c .) of $total session(s) need a restart"
+
+# Map Claude processes to herdr panes (process-info per pane, 16 at a time).
+map=$results/map
+"$herdr" agent list 2>/dev/null | jq -r '.result.agents[] | select(.agent == "claude") | .pane_id' |
+  xargs -P 16 -I{} sh -c '"$0" pane process-info --pane "$1" 2>/dev/null | jq -r --arg p "$1" ".result.process_info.foreground_processes[] | select(.argv[0] | test(\"(^|/)claude\$\")) | \"\(\$p) \(.pid) \(.name)\""' "$herdr" {} >"$map"
+
+# Outdated Claude processes that no herdr pane holds cannot be resumed from here.
+printf '%s\n' "$outdated" | while read -r pid ver; do
+  [ -n "$pid" ] || continue
+  awk -v pid="$pid" '$2 == pid {f = 1} END {exit !f}' "$map" ||
+    say "OUTSIDE pid $pid $ver (not in a herdr pane: $(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')); restart it by hand"
+done
+
+# Restart panes, $par at a time.
+throttle() { while [ "$(jobs -p | wc -l)" -ge "$par" ]; do sleep 0.2; done; }
+cands=$results/cands
+awk -v v="$latest" -v f="$force" 'f == 1 || $3 != v' "$map" >"$cands"
+n=0
+while read -r p pid ver; do
+  if [ -n "$only" ]; then case " $only " in *" $p "*) ;; *) continue ;; esac; fi
+  # A session running this script cannot restart itself mid-turn.
+  [ "$p" = "${HERDR_PANE_ID:-}" ] && { say "SKIP $p (runs this script; restart it from another pane)"; continue; }
+  throttle
+  restart_one "$p" "$pid" "$ver" &
+  n=$((n + 1))
+done <"$cands"
+wait
+
+# Busy sessions: restart each one as soon as it is idle, until --wait-working runs out.
+deadline=$(( $(date +%s) + waitw ))
+while :; do
+  deferred=$(cat "$results"/w* 2>/dev/null | awk '$1 == "DEFER" {print $2, $3, $4}')
+  [ -n "$deferred" ] || break
+  [ "$dry" = 0 ] && [ "$(date +%s)" -lt "$deadline" ] || break
+  sleep 10
+  while read -r p pid ver; do
+    [ "$(status_of "$p")" = working ] && continue
+    throttle
+    restart_one "$p" "$pid" "$ver" &
+  done <<EOF
+$deferred
+EOF
+  wait
+done
+
+ok=0 skip=0 fail=0 plan=0
+for f in "$results"/w*; do
+  [ -e "$f" ] || continue
+  line=$(cat "$f")
+  case $line in RESTARTED*) ok=$((ok + 1)) ;; PLAN*) plan=$((plan + 1)) ;; FAIL*) fail=$((fail + 1)) ;; *) skip=$((skip + 1)) ;; esac
+  case $line in DEFER*) line="SKIP ${line#DEFER } (still working after ${waitw}s; next run)" ;; esac
+  say "$line"
+done
+say "done in $(( $(date +%s) - started ))s: $ok restarted, $skip skipped, $fail failed, $plan planned (of $n)"

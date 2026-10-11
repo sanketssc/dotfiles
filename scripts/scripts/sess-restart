@@ -1,0 +1,65 @@
+#!/bin/sh
+# sess-restart — restart Claude sessions in their herdr panes and resume each conversation as is
+# (same session id, herdr name and sidebar tag), e.g. to pick up a new Claude Code version or settings.
+#   sess-restart [--wait] <pane>...
+# A working session is skipped, or with --wait waited for (up to 30 minutes) until it is idle.
+# Background shells and monitors of a session end with it; the output says which sessions had any.
+# Panes outside ~/Documents/matiks/.worktrees get --add-dir ~/Documents/matiks, like wt-task.
+set -eu
+herdr=${HERDR_BIN_PATH:-herdr}
+root=${MATIKS_ROOT:-$HOME/Documents/matiks}
+wait=0
+[ "${1:-}" = --wait ] && { wait=1; shift; }
+[ $# -ge 1 ] || { sed -n '4,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+field() { printf '%s' "$info" | jq -r "$1 // empty"; }
+# True when the pane's input box is empty or shows only a dimmed suggestion (never type over a draft).
+esc=$(printf '\033')
+input_empty() {
+  line=$("$herdr" agent read "$1" --source visible --ansi 2>/dev/null | grep '❯' | tail -1) || return 1
+  [ -z "$(printf '%s' "$line" | sed "s/$esc\[[0-9;]*m//g; s/^.*❯//; s/[[:space:]]//g")" ] && return 0
+  after=${line##*❯}
+  # Only blanks (the prompt pads with a no-break space) may come before a dimmed suggestion.
+  [ -z "$(printf '%s' "${after%%"$esc"*}" | LC_ALL=C tr -d ' \302\240')" ] || return 1
+  case $esc${after#*"$esc"} in "$esc[0m$esc[2m"* | "$esc[2m"*) return 0 ;; esac
+  return 1
+}
+for p in "$@"; do
+  info=$("$herdr" agent get "$p" 2>/dev/null) || { echo "SKIP $p (no agent)"; continue; }
+  if [ "$(field .result.agent.agent_status)" = working ]; then
+    if [ "$wait" = 0 ]; then echo "SKIP $p $(field .result.agent.name) (working)"; continue; fi
+    "$herdr" agent wait "$p" --until idle --until done --until blocked --timeout 1800000 >/dev/null 2>&1 || true
+    info=$("$herdr" agent get "$p")
+  fi
+  name=$(field .result.agent.name)
+  sid=$(field .result.agent.agent_session.value)
+  cwd=$(field .result.agent.cwd)
+  [ -n "$sid" ] || { echo "SKIP $p $name (no session id)"; continue; }
+  tag=$("$herdr" pane get "$p" 2>/dev/null | jq -r '.result.pane.tokens.mtag // empty')
+  jobs=$("$herdr" agent read "$p" --source visible 2>/dev/null | grep -oE '[0-9]+ (shells?|monitors?)' | tail -1 || true)
+  i=0
+  while ! input_empty "$p" && [ $i -lt 60 ]; do sleep 2; i=$((i + 1)); done
+  input_empty "$p" || { echo "SKIP $p $name (input box holds a draft)"; continue; }
+  "$herdr" agent prompt "$p" "/exit" >/dev/null 2>&1 || true
+  i=0
+  # Exited = the agent is gone from the pane (or herdr reports it unknown).
+  while :; do
+    st=$("$herdr" agent get "$p" 2>/dev/null | jq -r '.result.agent.agent_status // empty' 2>/dev/null || true)
+    case $st in "" | unknown) break ;; esac
+    [ $i -lt 30 ] || break
+    sleep 2; i=$((i + 1))
+  done
+  if [ $i -ge 30 ]; then echo "FAIL $p $name (did not exit; check the pane for a dialog)"; continue; fi
+  sleep 2
+  case $cwd in
+    "$root/.worktrees/"*) "$herdr" pane run "$p" claude --resume "$sid" >/dev/null 2>&1 ;;
+    *) "$herdr" pane run "$p" claude --resume "$sid" --add-dir "$root" >/dev/null 2>&1 ;;
+  esac
+  i=0
+  while [ "$("$herdr" agent get "$p" 2>/dev/null | jq -r '.result.agent.agent_session.value // empty')" != "$sid" ] && [ $i -lt 45 ]; do
+    sleep 2; i=$((i + 1))
+  done
+  [ -n "$name" ] && "$herdr" agent rename "$p" "$name" >/dev/null 2>&1 || true
+  [ -n "$tag" ] && "$herdr" pane report-metadata "$p" --source matiks-master --token "mtag=$tag" >/dev/null 2>&1 || true
+  now=$("$herdr" agent get "$p" 2>/dev/null | jq -r '.result.agent | [.name, .agent_status, .agent_session.value] | @tsv')
+  echo "RESTARTED $p $now${jobs:+ (ended: $jobs)}"
+done
