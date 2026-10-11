@@ -18,6 +18,7 @@ git/.config/git/config.local
 kitty/.config/kitty/local.conf
 # worktrunk: per-machine hook approvals (~/.config/worktrunk is folded into this package)
 worktrunk/.config/worktrunk/approvals.toml
+worktrunk/.config/worktrunk/approvals.toml.lock
 # nushell runtime files (the config dir is linked into this repo on the XDG layout)
 nushell/.config/nushell/history.*
 nushell/.config/nushell/plugin.msgpackz

@@ -63,5 +63,13 @@ alias la = ls -a
 alias nlof = fzf_listoldfiles.sh
 alias nzo = zoxide_openfiles_nvim.sh
 
+# Arch (invok3r): paru for official + AUR packages, as fish's abbreviations had it. Aliases can't
+# be conditional in nu; on macOS these just report that paru is missing.
+alias up = paru -Syu
+alias pin = paru -S
+alias prm = paru -Rns
+alias pss = paru -Ss
+alias porphans = paru -Qtdq
+
 # mkcd: make a directory and cd into it
 def --env mkcd [dir: path] { mkdir $dir; cd $dir }

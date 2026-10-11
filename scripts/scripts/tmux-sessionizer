@@ -6,7 +6,12 @@
 # if [[ $# -eq 1 ]]; then
 #     selected=$1
 # else
-#     selected=$(fd -H . ~/dotfiles ~/Desktop/main-cs ~/Desktop/main-cs/Projects ~/ ~/Desktop/work ~/Desktop/work/youtube -t d -d 1 | fzf)
+#     # the Mac's folders and invok3r's; fd fails on a missing one, so keep only those that exist
+    search_dirs=("$HOME" "$HOME/dotfiles" "$HOME/Desktop/main-cs" "$HOME/Desktop/main-cs/Projects"
+        "$HOME/Desktop/work" "$HOME/Desktop/work/youtube" "$HOME/projects" "$HOME/work" "$HOME/.config")
+    existing=()
+    for d in "${search_dirs[@]}"; do [ -d "$d" ] && existing+=("$d"); done
+    selected=$(fd -H . "${existing[@]}" -t d -d 1 | fzf)
 # fi
 #
 # if [[ -z $selected ]]; then
@@ -52,7 +57,12 @@ hydrate() {
 if [[ $# -eq 1 ]]; then
     selected=$1
 else
-    selected=$(fd -H . ~/dotfiles ~/Desktop/main-cs ~/Desktop/main-cs/Projects ~/ ~/Desktop/work ~/Desktop/work/youtube -t d -d 1 | fzf)
+    # the Mac's folders and invok3r's; fd fails on a missing one, so keep only those that exist
+    search_dirs=("$HOME" "$HOME/dotfiles" "$HOME/Desktop/main-cs" "$HOME/Desktop/main-cs/Projects"
+        "$HOME/Desktop/work" "$HOME/Desktop/work/youtube" "$HOME/projects" "$HOME/work" "$HOME/.config")
+    existing=()
+    for d in "${search_dirs[@]}"; do [ -d "$d" ] && existing+=("$d"); done
+    selected=$(fd -H . "${existing[@]}" -t d -d 1 | fzf)
 fi
 
 # Abort if nothing selected

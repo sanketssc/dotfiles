@@ -216,6 +216,15 @@ alias mpds="mpd ~/.config/mpd/mpd.conf"
 # obsidian icloud path
 alias sethvault="cd ~/Library/Mobile\ Documents/iCloud~md~obsidian/Documents/sethVault/"
 
+# Arch (invok3r): paru for official + AUR packages, as fish's abbreviations had it
+if command -v paru >/dev/null; then
+    alias up='paru -Syu'
+    alias pin='paru -S'
+    alias prm='paru -Rns'
+    alias pss='paru -Ss'
+    alias porphans='paru -Qtdq'
+fi
+
 # matiks dev tmux launcher
 # (company scripts: kept out of the public repo, only present in ~/scripts on machines that have them)
 alias ss="matiks-dev.sh"
