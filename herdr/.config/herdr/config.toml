@@ -189,8 +189,10 @@ sidebar_max_width = 40
 tab_bar_right_separator = " │ "
 tab_bar_right = [
   { type = "zoom" },
-  { type = "command", command = "pmset -g batt | grep -Eo '[0-9]+%' | head -1", interval_seconds = 60 },
-  { type = "command", command = "ping -c1 -t1 1.1.1.1 >/dev/null 2>&1 && echo '󰖩 on' || echo '󰖪 off'", interval_seconds = 15, timeout_seconds = 3 },
+  # battery: pmset on macOS, sysfs on Linux (empty on a desktop without one)
+  { type = "command", command = "{ pmset -g batt 2>/dev/null || sed 's/$/%/' /sys/class/power_supply/BAT*/capacity 2>/dev/null; } | grep -Eo '[0-9]+%' | head -1", interval_seconds = 60 },
+  # ping's timeout flag differs: -t on macOS, -w on Linux (where -t sets the TTL)
+  { type = "command", command = "case $(uname) in Darwin) w=-t1 ;; *) w=-w1 ;; esac; ping -c1 $w 1.1.1.1 >/dev/null 2>&1 && echo '󰖩 on' || echo '󰖪 off'", interval_seconds = 15, timeout_seconds = 3 },
 ]
 
 # agents panel: two lines = taller click target. line 1 title, line 2 quiet folder (+ remote machine); "Local" hidden
@@ -203,8 +205,10 @@ rows = [
 
 # claude rows: same, without the redundant "claude" label
 [ui.sidebar.agents.rows_by_agent]
+# matiks masters report token mtag = m<N>-<p|w|d> (sess-status); shown in front of the title:
+# p in progress (yellow), w waiting on the user (red), d done (green). Other sessions have no tag.
 claude = [
-  ["state_icon", { token = "terminal_title_stripped", fg = "#cdd6f4", bold = false, dim = false, rules = [{ equals = "Claude Code", fg = "#6c7086" }] }],
+  ["state_icon", { token = "$mtag", bold = true, rules = [{ contains = "-p", fg = "#f9e2af" }, { contains = "-w", fg = "#f38ba8" }, { contains = "-d", fg = "#a6e3a1" }] }, { token = "terminal_title_stripped", fg = "#cdd6f4", bold = false, dim = false, rules = [{ equals = "Claude Code", fg = "#6c7086" }] }],
   [{ token = "machine", fg = "#cba6f7", bold = false, dim = false, rules = [{ equals = "Local", hide = true }] }, { token = "workspace", fg = "#89b4fa", bold = false, dim = true }],
 ]
 
