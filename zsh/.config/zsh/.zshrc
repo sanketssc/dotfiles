@@ -10,12 +10,15 @@ command -v brew >/dev/null && eval "$(brew shellenv)"
 # source .zprofile in all zsh shells (just in case)
 # [[ -f "$HOME/.zprofile" ]] && source "$HOME/.zprofile"
 
-# T3 Code terminals: T3 starts $SHELL (zsh) and has no setting for it, so hand interactive ones to
-# nushell. Setup actions run with NO_COLOR=1 and type POSIX commands into the terminal: they stay
-# in zsh. T3_ZSH_TO_NU stops a `zsh` started from that nu from jumping back into nu.
-if [[ -o interactive && -n $T3CODE_PROJECT_ROOT && -z $NO_COLOR && -z $T3_ZSH_TO_NU ]] && command -v nu >/dev/null; then
-    export T3_ZSH_TO_NU=1
-    exec nu
+# zsh stays the login shell (scripts, `ssh host cmd` and T3's server need a POSIX shell), but the
+# shells you type in are nushell. Hand two kinds of interactive zsh to nu:
+# - SSH logins (SSH_TTY is set only when ssh gives the session a terminal).
+# - T3 Code terminals: T3 starts $SHELL and has no setting for it. Its setup actions run with
+#   NO_COLOR=1 and type POSIX commands into the terminal, so they stay in zsh.
+# ZSH_TO_NU stops a `zsh` started from that nu from jumping back into nu.
+if [[ -o interactive && -z $ZSH_TO_NU ]] && { [[ -n $SSH_TTY ]] || [[ -n $T3CODE_PROJECT_ROOT && -z $NO_COLOR ]]; } && command -v nu >/dev/null; then
+    export ZSH_TO_NU=1
+    if [[ -o login ]]; then exec nu --login; else exec nu; fi
 fi
 
 if command -v gdircolors >/dev/null; then eval "$(gdircolors)"
