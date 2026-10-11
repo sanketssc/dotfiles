@@ -6,11 +6,28 @@ ZSH_THEME="half-life" # set by `omz`
 # load env vars from .zprofile into the shells (ZDOTDIR on the XDG layout, ~ otherwise)
 [[ -f ${ZDOTDIR:-$HOME}/.zprofile ]] && source ${ZDOTDIR:-$HOME}/.zprofile
 
-eval "$(brew shellenv)"
+command -v brew >/dev/null && eval "$(brew shellenv)"
 # source .zprofile in all zsh shells (just in case)
 # [[ -f "$HOME/.zprofile" ]] && source "$HOME/.zprofile"
 
-command -v gdircolors >/dev/null && eval "$(gdircolors)"
+# T3 Code terminals: T3 starts $SHELL (zsh) and has no setting for it, so hand interactive ones to
+# nushell. Setup actions run with NO_COLOR=1 and type POSIX commands into the terminal: they stay
+# in zsh. T3_ZSH_TO_NU stops a `zsh` started from that nu from jumping back into nu.
+if [[ -o interactive && -n $T3CODE_PROJECT_ROOT && -z $NO_COLOR && -z $T3_ZSH_TO_NU ]] && command -v nu >/dev/null; then
+    export T3_ZSH_TO_NU=1
+    exec nu
+fi
+
+if command -v gdircolors >/dev/null; then eval "$(gdircolors)"
+elif command -v dircolors >/dev/null; then eval "$(dircolors)"; fi
+
+# zsh plugins come from Homebrew (macOS) or pacman (Arch: /usr/share/zsh/plugins)
+_source_zsh_plugin() {
+    local d
+    for d in ${HOMEBREW_PREFIX:+$HOMEBREW_PREFIX/share} /usr/share/zsh/plugins; do
+        [[ -f $d/$1/$1.zsh ]] && { source "$d/$1/$1.zsh"; return; }
+    done
+}
 
 # zsh plugins
 plugins=(
@@ -87,8 +104,7 @@ else
     autoload -Uz compinit && compinit -d "${ZSH_COMPDUMP:-$HOME/.zcompdump}"
     HISTSIZE=50000 SAVEHIST=50000
     setopt share_history hist_ignore_dups
-    [[ -f $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
-        source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+    _source_zsh_plugin zsh-autosuggestions
 fi
 
 # unbind ctrl g in terminal
@@ -207,8 +223,7 @@ alias sssa="matiks-dev-analytics.sh sync"
 
 # brew installations activation (new mac systems brew path: opt/homebrew , not usr/local )
 # source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[[ -f $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
-    source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+_source_zsh_plugin zsh-syntax-highlighting
 
 # . "/Users/personal/.deno/env"
 
@@ -218,10 +233,8 @@ export SDKMAN_DIR="$HOME/.sdkman"
 
 # bun completions
 [ -s "${BUN_INSTALL:-$HOME/.bun}/_bun" ] && source "${BUN_INSTALL:-$HOME/.bun}/_bun"
-# Add to your ~/.zshrc
-export ANDROID_HOME=$HOME/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/platform-tools
-export PATH=$PATH:$ANDROID_HOME/build-tools/36.0.0
+# Android tools on PATH (ANDROID_HOME / JAVA_HOME come from .zshenv)
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 
 
 # mise (new Mac: Go/Node pins per repo); no-op where mise is not installed
@@ -231,3 +244,8 @@ if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)
 
 # Created by `pipx` on 2026-04-21 11:48:45
 export PATH="$PATH:$HOME/.local/bin"
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=($HOME/.docker/completions $fpath)
+autoload -Uz compinit
+(( ${+_comps[docker]} )) || compinit
+# End of Docker CLI completions

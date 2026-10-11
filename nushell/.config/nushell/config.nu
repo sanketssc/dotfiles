@@ -11,3 +11,95 @@ alias gs = git status -s
 alias gd = git diff
 alias glog = git log --oneline --graph --all
 alias tns = tmux-sessionizer
+
+# ---------------------------------------------------------------------------------------------
+# matiks-client Android builds: any environment (development | preview | production) and
+# build type (release | debug). The JS environment is `.env.<env>` via scripts/use-env.js
+# (what `yarn use:<env>` runs). Release signing values live in the macOS login Keychain, never
+# in a file (this repo is public): store them once per environment with `android-signing-setup`.
+
+def "nu-complete matiks-env" [] { [development preview production] }
+
+def matiks-env [name: string] {
+  match $name {
+    "dev" | "development" => "development"
+    "preview" => "preview"
+    "prod" | "production" => "production"
+    _ => (error make { msg: $"unknown environment '($name)': use development, preview or production" })
+  }
+}
+
+# One signing value from the Keychain. Production also accepts the older entry names without
+# the environment segment (matiks-android-keystore-password, ...).
+def matiks-signing-secret [environment: string, name: string] {
+  let legacy = if $environment == "production" { [$"matiks-android-($name)"] } else { [] }
+  for service in ([$"matiks-android-($environment)-($name)"] ++ $legacy) {
+    let found = (^security find-generic-password -a $env.USER -s $service -w | complete)
+    if $found.exit_code == 0 { return ($found.stdout | str trim) }
+  }
+  error make { msg: $"Keychain has no matiks-android-($environment)-($name): run android-signing-setup ($environment), or build with --debug-signed" }
+}
+
+# Prompt for one environment's keystore password, key alias and key password (hidden input)
+# and save them to the login Keychain. Re-run to change them.
+def android-signing-setup [environment: string@"nu-complete matiks-env"] {
+  let environment = (matiks-env $environment)
+  for name in [keystore-password key-alias key-password] {
+    let value = (input -s $"($environment) ($name): ")
+    print ""
+    ^security add-generic-password -U -a $env.USER -s $"matiks-android-($environment)-($name)" -w $value
+  }
+  print $"Saved ($environment) signing values to the login Keychain."
+}
+
+# Build an APK (or --aab) for one environment from the current checkout. No device needed.
+# Release builds sign with that environment's keystore (Keychain values) and bundle the JS, so
+# the previous .env.local is put back afterwards. Debug builds are dev clients signed with the
+# checked-in debug.keystore; their JS comes from Metro, which reads .env.local when it starts,
+# so .env.local stays on the chosen environment.
+def android-build [
+  environment: string@"nu-complete matiks-env"  # development | preview | production (dev, prod work too)
+  --debug          # debug build type: dev client, JS from Metro (`yarn start`), no Keychain needed
+  --aab            # Play bundle (.aab) instead of an APK
+  --install        # install on the connected phone (adb) after building
+  --debug-signed   # release build signed with debug.keystore: no Keychain setup, phone testing only
+] {
+  let flavor = (matiks-env $environment)
+  let type = if $debug { "debug" } else { "release" }
+  let variant = $"($flavor | str capitalize)($type | str capitalize)"
+  let task = if $aab { $":app:bundle($variant)" } else { $":app:assemble($variant)" }
+  let signing = if $debug or $debug_signed { { ORG_GRADLE_PROJECT_localDebugSigning: "true" } } else {
+    let prefix = ($flavor | str uppercase)
+    {}
+    | insert $"($prefix)_KEYSTORE_PASSWORD" (matiks-signing-secret $flavor keystore-password)
+    | insert $"($prefix)_KEY_ALIAS" (matiks-signing-secret $flavor key-alias)
+    | insert $"($prefix)_KEY_PASSWORD" (matiks-signing-secret $flavor key-password)
+  }
+  let root = (^git rev-parse --show-toplevel | str trim)
+  let env_local = ($root | path join ".env.local")
+  let saved = if ($env_local | path exists) { open --raw $env_local } else { null }
+  let ok = try {
+    cd $root
+    ^node scripts/use-env.js $flavor
+    with-env $signing { cd android; ^./gradlew $task }
+    true
+  } catch { false }
+  if not $debug {
+    if $saved != null { $saved | save -f $env_local } else { rm -f $env_local }
+  }
+  if not $ok { error make { msg: $"($task) failed" } }
+
+  let out = if $aab { $"android/app/build/outputs/bundle/($flavor)($type | str capitalize)" } else { $"android/app/build/outputs/apk/($flavor)/($type)" }
+  let file = (glob ($root | path join $out "*.{apk,aab}") | first)
+  print $"built ($file)"
+  if $install {
+    if $aab { print "an .aab can't be installed on a phone; build without --aab to install"; return }
+    let phones = (^adb devices | lines | skip 1 | where {|l| $l =~ '\tdevice$' })
+    if ($phones | is-empty) { print "no phone connected (adb devices); install later: adb install -r <file>"; return }
+    ^adb install -r $file
+    if $debug { ^adb reverse tcp:8081 tcp:8081; print "dev client: run `yarn start` for Metro" }
+  }
+}
+
+# Production Play bundle, as before.
+alias android-release = android-build production --aab

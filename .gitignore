@@ -21,3 +21,5 @@ worktrunk/.config/worktrunk/approvals.toml
 # nushell runtime files (the config dir is linked into this repo on the XDG layout)
 nushell/.config/nushell/history.*
 nushell/.config/nushell/plugin.msgpackz
+# zsh completion dumps (compinit without -d writes into ZDOTDIR)
+zsh/.config/zsh/.zcompdump*
